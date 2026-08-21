@@ -50,7 +50,7 @@ RuuviDisplay/
 ```
 
 **Dependencies:**
-- `https://github.com/tzapu/WiFiManager.git` - Web configuration server
+- `tzapu/WiFiManager@^2.0.17` - Web configuration server
 - `vroland/epdiy@^2.1.3` - e-Paper display library
 
 ---
@@ -165,11 +165,6 @@ pio run -t upload -v
 - Adapt pin definitions from `old/src/pins.h` for your board variant
 - Study IotWebConf usage in the reference implementation
 
-**CODING**
-- Go with small steps
-- Keep context small
-
-
 ---
 
 ## Board Selection
@@ -190,8 +185,8 @@ board = t-display-v2      # Alternative board if needed
 
 - **PlatformIO Docs**: https://docs.platformio.org/
 - **Arduino ESP32 Core**: https://github.com/espressif/arduino-esp32
-- **WifiManager**: https://github.com/tzapu/WiFiManager.git
-- **EPDy Library**: https://github.com/epdiy/EPDy
+- **WifiManager**: https://github.com/tzapu/WiFiManager
+- **EPDiy Library**: https://github.com/vroland/epdiy
 
 ---
 
