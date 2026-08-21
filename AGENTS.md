@@ -165,6 +165,11 @@ pio run -t upload -v
 - Adapt pin definitions from `old/src/pins.h` for your board variant
 - Study IotWebConf usage in the reference implementation
 
+**CODING**
+- Go with small steps
+- Keep context small
+
+
 ---
 
 ## Board Selection
