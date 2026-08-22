@@ -21,7 +21,7 @@ const char* const WIFI_AP_PASSWORD = "ruuvi12345";
 // The app/sensor layer reads these values to know where to send data and which
 // API key to use. Empty fields mean "not configured".
 struct AppConfig {
-    char httpEndpoint[65];  // e.g. https://api.example.com/ingest
+    char backendUrl[65];  // e.g. https://api.example.com/ingest
     char apiKey[65];         // API key for the endpoint
 };
 

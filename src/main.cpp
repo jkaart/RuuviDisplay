@@ -16,7 +16,7 @@ void saveParamsCallback();   // custom params (endpoint/api key) saved -> persis
 static bool g_shouldReboot = false;
 
 // -- Captive portal custom fields (must outlive the portal session) ----------
-WiFiManagerParameter httpEndpoint("http_endpoint", "Endpoint url", "", 64);
+WiFiManagerParameter backendParam("backend_url", "Backend URL", "", 64);
 WiFiManagerParameter apiKeyParam("api_key", "API key", "", 64);
 
 // -- Persistent storage for endpoint URL and API key -------------------------
@@ -27,18 +27,18 @@ Preferences prefs;
 // after a successful WiFi connection so the app always has current values.
 void loadCustomConfig();
 
-// Persist the endpoint URL and API key entered in the captive portal. Idempotent:
+// Persist the backend URL and API key entered in the captive portal. Idempotent:
 // only non-empty values are written, so calling it from either save callback is safe.
 void persistCustomConfig()
 {
-  String endpoint = httpEndpoint.getValue();
+  String backendUrl = backendParam.getValue();
   String apiKey   = apiKeyParam.getValue();
 
   prefs.begin(PREFERENCES_NAME, false);
-  if (!endpoint.isEmpty()) {
-    prefs.putString("endpoint_url", endpoint);
+  if (!backendUrl.isEmpty()) {
+    prefs.putString("backend_url", backendUrl);
   } else {
-    prefs.remove("endpoint_url");
+    prefs.remove("backend_url");
   }
   if (!apiKey.isEmpty()) {
     prefs.putString("api_key", apiKey);
@@ -73,12 +73,12 @@ void loadCustomConfig()
   if (!prefs.begin(PREFERENCES_NAME, false)) {
     return;
   }
-  String endpoint = prefs.getString("endpoint_url", "");
+  String backendUrl = prefs.getString("backend_url", "");
   String apiKey   = prefs.getString("api_key", "");
   prefs.end();
 
   // Populate g_config (truncate to the fixed buffer sizes).
-  endpoint.toCharArray(g_config.httpEndpoint, sizeof(g_config.httpEndpoint));
+  backendUrl.toCharArray(g_config.backendUrl, sizeof(g_config.backendUrl));
   apiKey.toCharArray(g_config.apiKey, sizeof(g_config.apiKey));
 }
 
@@ -87,12 +87,12 @@ void loadCustomConfig()
 // is sent for this request. Logs OK/FAILED to Serial, never blocks display work.
 static void endpointHealthCheck()
 {
-  if (!g_config.httpEndpoint[0]) {
+  if (!g_config.backendUrl[0]) {
     Serial.println("[endpoint] no endpoint configured");
     return;
   }
 
-  String url = g_config.httpEndpoint;
+  String url = g_config.backendUrl;
   if (url.startsWith("http://")) {
     url.replace("http://", "https://");   // force HTTPS
   } else if (!url.startsWith("https://") && !url.isEmpty()) {
@@ -176,7 +176,7 @@ void setup()
   wifiManager.setSaveConfigCallback(&saveConfigCallback);
   wifiManager.setSaveParamsCallback(&saveParamsCallback);
 
-  wifiManager.addParameter(&httpEndpoint);
+  wifiManager.addParameter(&backendParam);
   wifiManager.addParameter(&apiKeyParam);
 
   // Blocking auto-connect: tries saved credentials, and if those fail (or none
