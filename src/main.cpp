@@ -3,12 +3,49 @@
 #include "wifi_config.h"
 
 #include <WiFiManager.h>
+#include <Preferences.h>
 
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
-void saveConfigCallback();
+void saveConfigCallback();   // WiFi credentials changed -> reboot + persist custom config
+void saveParamsCallback();   // custom params (endpoint/api key) saved -> persist, no reboot
 
 static bool g_shouldReboot = false;
+
+// -- Captive portal custom fields (must outlive the portal session) ----------
+WiFiManagerParameter httpEndpoint("http_endpoint", "Endpoint url", "", 64);
+WiFiManagerParameter apiKeyParam("api_key", "API key", "", 64);
+
+// -- Persistent storage for endpoint URL and API key -------------------------
+AppConfig g_config;
+Preferences prefs;
+
+// Read the endpoint URL / API key from Preferences into g_config. Called once
+// after a successful WiFi connection so the app always has current values.
+void loadCustomConfig();
+
+// Persist the endpoint URL and API key entered in the captive portal. Idempotent:
+// only non-empty values are written, so calling it from either save callback is safe.
+void persistCustomConfig()
+{
+  String endpoint = httpEndpoint.getValue();
+  String apiKey   = apiKeyParam.getValue();
+
+  prefs.begin(PREFERENCES_NAME, false);
+  if (!endpoint.isEmpty()) {
+    prefs.putString("endpoint_url", endpoint);
+  } else {
+    prefs.remove("endpoint_url");
+  }
+  if (!apiKey.isEmpty()) {
+    prefs.putString("api_key", apiKey);
+  } else {
+    prefs.remove("api_key");
+  }
+  prefs.end();
+
+  loadCustomConfig();
+}
 
 void configModeCallback(WiFiManager *myWiFiManager)
 {
@@ -18,9 +55,28 @@ void configModeCallback(WiFiManager *myWiFiManager)
 
 void saveConfigCallback()
 {
-  // Custom parameters were saved and a connection was established. Flag a
-  // reboot so the ESP32 re-reads the new credentials from flash on next boot.
+  // New WiFi credentials were stored; a fresh boot is required to apply them.
   g_shouldReboot = true;
+  persistCustomConfig();
+}
+
+void saveParamsCallback()
+{
+  persistCustomConfig();
+}
+
+void loadCustomConfig()
+{
+  if (!prefs.begin(PREFERENCES_NAME, false)) {
+    return;
+  }
+  String endpoint = prefs.getString("endpoint_url", "");
+  String apiKey   = prefs.getString("api_key", "");
+  prefs.end();
+
+  // Populate g_config (truncate to the fixed buffer sizes).
+  endpoint.toCharArray(g_config.httpEndpoint, sizeof(g_config.httpEndpoint));
+  apiKey.toCharArray(g_config.apiKey, sizeof(g_config.apiKey));
 }
 
 void setup()
@@ -40,6 +96,10 @@ void setup()
 
   wifiManager.setAPCallback(&configModeCallback);
   wifiManager.setSaveConfigCallback(&saveConfigCallback);
+  wifiManager.setSaveParamsCallback(&saveParamsCallback);
+
+  wifiManager.addParameter(&httpEndpoint);
+  wifiManager.addParameter(&apiKeyParam);
 
   // Blocking auto-connect: tries saved credentials, and if those fail (or none
   // are stored) opens the captive portal until a user saves new ones. Returns
@@ -58,6 +118,10 @@ void setup()
     delay(3000);
     ESP.restart();
   }
+
+  // Load endpoint URL / API key persisted from the last portal session so the
+  // app has them available immediately after connecting.
+  loadCustomConfig();
 
   Serial.print("[wifi] Connected as STA, IP: ");
   Serial.println(WiFi.localIP());
