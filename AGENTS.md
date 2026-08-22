@@ -1,5 +1,133 @@
 # RuuviDisplay Project - Agent Guidelines
 
+## Agent Operating Rules
+
+These rules take precedence over convenience when implementing features.
+
+### 1. Investigate before implementing
+
+Do not immediately start writing code when given a new feature request.
+
+Before making changes:
+
+1. Understand what the feature actually requires.
+2. Inspect the existing project and current implementation.
+3. Check whether the project already contains functionality that can be reused.
+4. Check the existing PlatformIO dependencies.
+5. Check whether Arduino or ESP32 already provides the required functionality.
+6. Search for suitable external libraries when appropriate.
+7. Compare the available options before choosing an implementation.
+
+The goal is to reuse existing, well-tested functionality rather than
+reimplementing it.
+
+### 2. Library and platform-first approach
+
+If a suitable, maintained library exists, prefer using it over writing
+the functionality from scratch.
+
+Do NOT implement a protocol, driver, parser, storage system, networking
+component, or other substantial functionality manually if a suitable
+library already exists.
+
+When a feature could reasonably be provided by a library, actively
+search for an existing library before considering a custom implementation.
+
+Before adding a new dependency, verify:
+
+- compatibility with ESP32
+- compatibility with the Arduino framework
+- compatibility with the project's PlatformIO/ESP32 version
+- whether the library is actively maintained
+- whether the required functionality is actually supported
+- whether an existing project dependency can already provide it
+- whether Arduino or ESP32 already provides the required functionality
+
+Do not add a dependency merely because it is the first library found.
+
+Do not implement functionality manually merely because a custom
+implementation appears simple.
+
+### 3. Do not silently choose an implementation
+
+When there are multiple reasonable approaches, explain the alternatives
+before making a substantial architectural choice.
+
+Possible approaches include:
+
+- existing project functionality
+- Arduino/ESP32 built-in functionality
+- existing project dependency
+- mature external library
+- custom implementation
+
+Prefer, in this order:
+
+1. Existing project functionality
+2. Arduino/ESP32 built-in functionality
+3. Existing project dependency
+4. Mature external library
+5. Custom implementation
+
+A custom implementation should be the last resort.
+
+If choosing a custom implementation over an existing library or built-in
+functionality, explicitly explain why.
+
+### 4. Separate investigation from implementation
+
+For non-trivial features, use two phases.
+
+Phase 1: Investigation
+
+- inspect the project
+- research relevant APIs and libraries
+- identify compatibility issues
+- compare viable approaches
+- propose the implementation
+
+Do not modify source files during this phase.
+
+Phase 2: Implementation
+
+Only after the approach is clear, modify the project.
+
+After implementation:
+
+- build the project
+- run available tests
+- fix compilation errors
+- verify that the implementation follows the project architecture
+
+For simple, low-risk changes where the correct implementation is
+obvious and no architectural or dependency decision is required,
+the agent may implement the change directly.
+
+For anything involving a new dependency, library choice, hardware
+interaction, architecture, protocol, persistence, networking, or
+substantial code changes, the agent MUST stop after investigation
+and present the proposed approach before modifying source files.
+
+### 5. When the user asks to add functionality
+
+When a user asks for a new feature, do not assume that the requested
+implementation is the best implementation.
+
+First determine:
+
+- Is this functionality already present in the project?
+- Is it provided by Arduino?
+- Is it provided by ESP32/ESP-IDF?
+- Is it provided by an existing dependency?
+- Is there a suitable external library?
+- Does the hardware require a specific implementation?
+
+If there are multiple viable solutions, present the recommended
+solution and the important alternatives before implementation.
+
+Do not add a new library or create a custom implementation without
+considering the alternatives.
+
 ## Overview
 
 This is an ESP32-based PlatformIO project for the LilyGo T-Display (T5-47) e-Paper display device. The project uses Arduino framework with PlatformIO build system.
@@ -107,15 +235,61 @@ The `old/src/main.cpp` contains a working demo using:
 
 ### 3. Adding New Features
 
-When implementing new functionality:
+Every feature should follow this workflow:
 
-1. **Create source files in `src/` directory** (not in `old/`)
-2. **Use pins.h from old/src/pins.h as reference** for pin definitions
-3. **Include necessary libraries** from PlatformIO dependencies or external libs
-4. **Follow Arduino best practices**:
-   - Initialize in `setup()`
-   - Implement logic in `loop()`
-   - Use non-blocking code (millis() instead of delay())
+#### Step 1 — Understand
+
+Determine:
+- What is the actual requirement?
+- What existing code is related to it?
+- What constraints does the hardware impose?
+
+#### Step 2 — Investigate
+
+Before writing code:
+- search the repository
+- inspect existing dependencies
+- inspect Arduino/ESP32 APIs
+- search for suitable libraries if necessary
+
+#### Step 3 — Plan
+
+Determine the smallest appropriate implementation.
+
+For non-trivial features, STOP after the investigation phase and
+present the proposed approach before modifying source files.
+
+Do not modify source files during investigation unless explicitly
+asked to do so.
+
+#### Step 4 — Implement
+
+Only after the approach is established:
+- modify/create files in `src/`
+- reuse existing code where appropriate
+- use libraries instead of custom implementations where appropriate
+- keep functionality modular
+
+#### Step 5 — Verify
+
+Run:
+
+    pio run
+
+and, when applicable:
+
+    pio test
+
+Fix any errors introduced by the implementation.
+
+#### Step 6 — Summarize
+
+Report:
+- what changed
+- which libraries were added or used
+- why they were chosen
+- what was tested
+- any remaining limitations
 
 ### 4. Testing
 
