@@ -10,7 +10,7 @@ This is an ESP32-based PlatformIO project for the LilyGo T-Display (T5-47) e-Pap
 - EPDy library for e-paper control
 - WiFiManager for web-based configuration
 
-**Location:** `~/home/jani~/Documents/PlatformIO/Projects/RuuviDisplay`
+**Location:** `~/Documents/PlatformIO/Projects/RuuviDisplay`
 
 ---
 
