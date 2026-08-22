@@ -7,7 +7,7 @@ This is an ESP32-based PlatformIO project for the LilyGo T-Display (T5-47) e-Pap
 **Hardware:**
 - ESP32-WROVER-KIT or compatible boards (ESP32/ESP32-S3)
 - E-Ink e-Paper display (ED047TC1 - 4.7 inch)
-- EPDy library for e-paper control
+- EPDiy library for e-paper control
 - WiFiManager for web-based configuration
 
 **Location:** `~/Documents/PlatformIO/Projects/RuuviDisplay`
@@ -86,7 +86,7 @@ RuuviDisplay/
 ### 1. Initial Setup
 
 ```bash
-cd /home/jani/Documents/PlatformIO/Projects/RuuviDisplay
+cd ~/Documents/PlatformIO/Projects/RuuviDisplay
 pio run -t build          # Build project
 pio run -t upload         # Upload to board
 pio run -t monitor        # Monitor serial output
