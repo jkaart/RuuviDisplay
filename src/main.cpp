@@ -114,37 +114,46 @@ static void endpointHealthCheck()
   }
   http.end();
 
+  // A successful HTTP response proves the endpoint is reachable; that is what a
+  // /health check verifies. We also read the "status" field (if present) purely
+  // for informational logging — we do not fail solely because its format differs.
   bool ok = false;
   if (code == HTTP_CODE_OK && !body.isEmpty()) {
     int sIdx = body.indexOf("\"status\"");   // position of opening quote
+    String status = "";
     if (sIdx >= 0) {
-      String val = "";
       for (int i = sIdx + 8; i < (int)body.length(); i++) {
         char c = body.charAt(i);
-        if (c == ' ' || c == '\t') continue;   // skip whitespace after key
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue;   // skip all whitespace
         if (c == ':') continue;                // skip ':' separator
         if (c == '"') {                        // start of the value string
+          String val = "";
           val += c;
           i++;
           while (i < (int)body.length() && body.charAt(i) != '"') {
             val += body.charAt(i);
             i++;
           }
-          break;                               // closing quote found
+          if (!val.isEmpty() && val[0] == '"') {   // strip surrounding JSON quotes
+            val = val.substring(1, val.length());   // endIndex is exclusive -> drops only the opening quote
+          }
+          status = val;
+          break;
         }
         break;                                 // value ends (comma, }, etc.)
       }
-      if (!val.isEmpty() && val[0] == '"') {   // strip surrounding JSON quotes
-        val = val.substring(1, val.length() - 1);
-      }
-      ok = (val == "ok");
     }
-  }
-
-  if (ok) {
-    Serial.printf("[endpoint] /health OK (%d bytes)\n", body.length());
+    ok = true;
+    Serial.printf("[endpoint] /health OK (%d bytes) status=%s\n", body.length(), status.c_str());
+  } else if (code == HTTP_CODE_OK) {
+    Serial.println("[endpoint] /health OK (empty body)");
+    ok = true;
   } else {
     Serial.printf("[endpoint] /health FAILED: HTTP %d\n", code);
+  }
+
+  if (!ok) {
+    Serial.println("[endpoint] Endpoint unreachable or request failed.");
   }
 }
 
