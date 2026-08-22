@@ -5,6 +5,9 @@
 #include <WiFiManager.h>
 #include <Preferences.h>
 
+// HTTP client for outbound endpoint connectivity check (built into ESP32 core)
+#include <HTTPClient.h>
+
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
 void saveConfigCallback();   // WiFi credentials changed -> reboot + persist custom config
@@ -79,6 +82,72 @@ void loadCustomConfig()
   apiKey.toCharArray(g_config.apiKey, sizeof(g_config.apiKey));
 }
 
+// One-shot connectivity check to the configured endpoint. Forces HTTPS and
+// requests /health; verifies the response body contains status:"ok". No API key
+// is sent for this request. Logs OK/FAILED to Serial, never blocks display work.
+static void endpointHealthCheck()
+{
+  if (!g_config.httpEndpoint[0]) {
+    Serial.println("[endpoint] no endpoint configured");
+    return;
+  }
+
+  String url = g_config.httpEndpoint;
+  if (url.startsWith("http://")) {
+    url.replace("http://", "https://");   // force HTTPS
+  } else if (!url.startsWith("https://") && !url.isEmpty()) {
+    url = "https://" + url;               // no scheme -> prepend https://
+  }
+  url += "/health";
+
+  Serial.printf("[endpoint] GET %s\n", url.c_str());
+
+  HTTPClient http;
+  if (!http.begin(url)) {
+    Serial.println("[endpoint] /health FAILED: begin error");
+    return;
+  }
+  int code = http.GET();
+  String body = "";
+  if (code == HTTP_CODE_OK) {
+    body = http.getString();
+  }
+  http.end();
+
+  bool ok = false;
+  if (code == HTTP_CODE_OK && !body.isEmpty()) {
+    int sIdx = body.indexOf("\"status\"");   // position of opening quote
+    if (sIdx >= 0) {
+      String val = "";
+      for (int i = sIdx + 8; i < (int)body.length(); i++) {
+        char c = body.charAt(i);
+        if (c == ' ' || c == '\t') continue;   // skip whitespace after key
+        if (c == ':') continue;                // skip ':' separator
+        if (c == '"') {                        // start of the value string
+          val += c;
+          i++;
+          while (i < (int)body.length() && body.charAt(i) != '"') {
+            val += body.charAt(i);
+            i++;
+          }
+          break;                               // closing quote found
+        }
+        break;                                 // value ends (comma, }, etc.)
+      }
+      if (!val.isEmpty() && val[0] == '"') {   // strip surrounding JSON quotes
+        val = val.substring(1, val.length() - 1);
+      }
+      ok = (val == "ok");
+    }
+  }
+
+  if (ok) {
+    Serial.printf("[endpoint] /health OK (%d bytes)\n", body.length());
+  } else {
+    Serial.printf("[endpoint] /health FAILED: HTTP %d\n", code);
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -122,6 +191,9 @@ void setup()
   // Load endpoint URL / API key persisted from the last portal session so the
   // app has them available immediately after connecting.
   loadCustomConfig();
+
+  // Verify connectivity to the configured endpoint once (HTTPS GET /health).
+  endpointHealthCheck();
 
   Serial.print("[wifi] Connected as STA, IP: ");
   Serial.println(WiFi.localIP());
