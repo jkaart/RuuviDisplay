@@ -197,16 +197,17 @@ void setup()
     ESP.restart();
   }
 
+  Serial.print("[wifi] Connected as STA, IP: ");
+  Serial.println(WiFi.localIP());
+
+  Serial.println("[wifi] Configuration complete.");
+
   // Load endpoint URL / API key persisted from the last portal session so the
   // app has them available immediately after connecting.
   loadCustomConfig();
 
   // Verify connectivity to the configured endpoint once (HTTPS GET /health).
   endpointHealthCheck();
-
-  Serial.print("[wifi] Connected as STA, IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("[wifi] Configuration complete.");
 }
 
 void loop()
