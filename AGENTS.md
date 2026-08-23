@@ -55,24 +55,30 @@ before making a substantial architectural choice.
 
 Possible approaches include:
 
-- existing project functionality
+- existing functionality in the current project
 - Arduino/ESP32 built-in functionality
-- existing project dependency
+- existing current-project dependency
 - mature external library
 - custom implementation
 
 Prefer, in this order:
 
-1. Existing project functionality
+1. Existing functionality in the current project
 2. Arduino/ESP32 built-in functionality
-3. Existing project dependency
+3. Existing current-project dependency
 4. Mature external library
 5. Custom implementation
 
 A custom implementation should be the last resort.
 
-If choosing a custom implementation over an existing library or built-in
-functionality, explicitly explain why.
+If choosing a custom implementation over existing functionality,
+built-in functionality, or an existing library, explicitly explain why.
+
+The `old/` directory is reference material and is NOT considered part
+of the current project's implementation.
+
+Functionality found only in `old/` must not be treated as an existing
+current-project dependency or feature.
 
 ### 4. Separate investigation from implementation
 
@@ -220,18 +226,41 @@ pio run -t upload         # Upload to board
 pio run -t monitor        # Monitor serial output
 ```
 
-### 2. Reference Implementation Study
+### 2. Reference Implementation
 
-The `old/src/main.cpp` contains a working demo using:
-- **IotWebConf**: Captive portal web server for configuration
-- **WiFi AP mode**: Initial setup with password "smrtTHNG8266"
-- **HTTP server**: Port 80, serves configuration page at `/config`
+The `old/` directory contains a copy of the previous
+ESP32WeatherDisplay project.
 
-**Key features from reference:**
-- WiFi connection callback handling
-- Form validation for HTTP server parameter
-- Configuration persistence via IotWebConf
-- Captive portal support
+It is provided as reference material only.
+
+The code in `old/` may contain useful examples of:
+
+- EPDiy usage
+- LilyGO T5-47 hardware configuration
+- display initialization
+- pin definitions
+- WiFi configuration
+- MQTT communication
+- IotWebConf configuration
+- other ESP32-specific implementation patterns
+
+However:
+
+- Do NOT assume that functionality from `old/` is required by the
+  current project.
+- Do NOT assume that the current project should reproduce the old
+  project's functionality.
+- Do NOT copy the old architecture into the new project automatically.
+- Do NOT add old project dependencies merely because they exist in
+  `old/platformio.ini`.
+- Functionality found only in `old/` is reference material, not existing
+  current-project functionality.
+- First determine whether the functionality is actually required by
+  the current project.
+- Prefer the current project's architecture and dependencies over the
+  old implementation.
+
+The `old/` directory MUST NOT be modified.
 
 ### 3. Adding New Features
 
