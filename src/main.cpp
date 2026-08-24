@@ -7,6 +7,10 @@
 
 // HTTP client for outbound endpoint connectivity check (built into ESP32 core)
 #include <HTTPClient.h>
+#include <NetworkClientSecure.h>
+
+// Parse + print RuuviTag measurements from the backend /api JSON array.
+#include "RuuviMeasurement.h"
 
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
@@ -210,8 +214,59 @@ void setup()
   endpointHealthCheck();
 }
 
+// Fetch latest measurements from /api and print every tag to Serial. Returns
+// true on success (HTTP OK + parsed). Reuses RuuviMeasurements for parsing/print;
+// display integration will build on the same parsed data.
+bool ruuviFetchAndPrint();
+
 void loop()
 {
-  // Idle for now. Future work: initialize the EPDiy display and run the sensor
-  // update loop here (e.g. epd.init(); epd.updatePanel()).
+  ruuviFetchAndPrint();
+}
+
+bool ruuviFetchAndPrint()
+{
+  if (!g_config.backendUrl[0]) {
+    Serial.println("[ruuvi] no backend URL configured");
+    return false;
+  }
+
+  String url = g_config.backendUrl;
+  if (url.startsWith("http://")) {
+    url.replace("http://", "https://");   // force HTTPS
+  } else if (!url.startsWith("https://") && !url.isEmpty()) {
+    url = "https://" + url;               // no scheme -> prepend https://
+  }
+  url += "/api";
+
+  Serial.printf("[ruuvi] GET %s\n", url.c_str());
+
+  HTTPClient http;
+  if (!http.begin(url)) {
+    Serial.println("[ruuvi] /api FAILED: begin error");
+    return false;
+  }
+  int code = http.GET();
+  String body;
+  if (code == HTTP_CODE_OK) {
+    body = http.getString();
+  }
+  http.end();
+
+  if (code != HTTP_CODE_OK || body.isEmpty()) {
+    Serial.printf("[ruuvi] /api FAILED: HTTP %d\n", code);
+    return false;
+  }
+
+  RuuviMeasurements ruuvi;
+  if (!ruuvi.parse(body.c_str(), body.length())) {
+    Serial.println("[ruuvi] parse failed, no data printed");
+    return false;
+  }
+
+  uint8_t n = ruuvi.printAll();
+  if (n) {
+    Serial.println();   // blank line between poll cycles
+  }
+  return true;
 }
