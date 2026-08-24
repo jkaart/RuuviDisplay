@@ -19,6 +19,16 @@ void saveParamsCallback();   // custom params (endpoint/api key) saved -> persis
 
 static bool g_shouldReboot = false;
 
+// -- Rate limiting -----------------------------------------------------------
+// Backend allows at most 10 requests per 15 min (~90s spacing). We poll more
+// conservatively (2 min) to stay safely under the limit. On HTTP 429 we simply
+// wait for the next scheduled poll cycle; no response-header reading is needed
+// because this library version exposes no public header getter.
+static uint32_t g_lastRuuviFetchMs = 0;   // millis of last /api fetch attempt
+static uint32_t g_rateLimitUntilMs = 0;   // absolute millis until which we must not poll
+
+const uint32_t RUUVI_POLL_INTERVAL_MS = 120000;   // default spacing between /api polls
+
 // -- Captive portal custom fields (must outlive the portal session) ----------
 WiFiManagerParameter backendParam("backend_url", "Backend URL", "", 64);
 WiFiManagerParameter apiKeyParam("api_key", "API key", "", 64);
@@ -221,7 +231,17 @@ bool ruuviFetchAndPrint();
 
 void loop()
 {
-  ruuviFetchAndPrint();
+  uint32_t now = millis();
+  if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
+  {
+    ruuviFetchAndPrint();
+    g_lastRuuviFetchMs = now;
+  }
+  else if (now < g_rateLimitUntilMs)
+  {
+    Serial.printf("[ruuvi] rate limited, next poll in %llu s\n",
+                  (unsigned long long)((g_rateLimitUntilMs - now)/1000ULL));
+  }
 }
 
 bool ruuviFetchAndPrint()
@@ -246,6 +266,15 @@ bool ruuviFetchAndPrint()
     Serial.println("[ruuvi] /api FAILED: begin error");
     return false;
   }
+
+  // Ruuvitag measurement API requires an x-api-key header. Send it only when a
+  // key is configured (an empty/missing key would just trigger a 401).
+  if (!g_config.apiKey[0]) {
+    Serial.println("[ruuvi] no API key configured -> backend will return HTTP 401");
+  } else {
+    http.addHeader("x-api-key", g_config.apiKey);
+  }
+
   int code = http.GET();
   String body;
   if (code == HTTP_CODE_OK) {
@@ -253,6 +282,14 @@ bool ruuviFetchAndPrint()
   }
   http.end();
 
+  if (code == HTTP_CODE_UNAUTHORIZED) {   // 401: missing/invalid API key
+    Serial.println("[ruuvi] /api rejected with HTTP 401 -> check the configured x-api-key");
+    return false;
+  }
+  if (code == HTTP_CODE_TOO_MANY_REQUESTS) {   // 429: backend rate limit hit
+    Serial.printf("[ruuvi] /api rate limited by backend (HTTP %d); retrying next poll cycle\n", code);
+    return false;
+  }
   if (code != HTTP_CODE_OK || body.isEmpty()) {
     Serial.printf("[ruuvi] /api FAILED: HTTP %d\n", code);
     return false;
