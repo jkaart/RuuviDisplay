@@ -174,80 +174,10 @@ static void endpointHealthCheck()
   }
 }
 
-void setup()
-{
-  Serial.begin(115200);
-  delay(1000); // give the serial port time to initialize before WiFiManager uses it
-  Serial.println();
-   Serial.println("[wifi] Starting up...");
-
-   display_init();
-
-   WiFiManager wifiManager;
-
-#ifdef DEBUG
-  wifiManager.setDebugOutput(true);
-#else
-  wifiManager.setDebugOutput(false);
-#endif
-
-  wifiManager.setAPCallback(&configModeCallback);
-  wifiManager.setSaveConfigCallback(&saveConfigCallback);
-  wifiManager.setSaveParamsCallback(&saveParamsCallback);
-
-  wifiManager.addParameter(&backendParam);
-  wifiManager.addParameter(&apiKeyParam);
-
-  // Blocking auto-connect: tries saved credentials, and if those fail (or none
-  // are stored) opens the captive portal until a user saves new ones. Returns
-  // control to this sketch once connected or after the configured timeout.
-  if (!wifiManager.autoConnect(WIFI_AP_NAME, WIFI_AP_PASSWORD))
-  {
-    Serial.println("[wifi] Could not establish a connection; rebooting to retry.");
-    delay(3000);
-    ESP.restart();
-  }
-
-  // New credentials were saved during the portal session and need a fresh boot.
-  if (g_shouldReboot)
-  {
-    Serial.println("[wifi] Rebooting to apply new credentials...");
-    delay(3000);
-    ESP.restart();
-  }
-
-  Serial.print("[wifi] Connected as STA, IP: ");
-  Serial.println(WiFi.localIP());
-
-  Serial.println("[wifi] Configuration complete.");
-
-  // Load endpoint URL / API key persisted from the last portal session so the
-  // app has them available immediately after connecting.
-  loadCustomConfig();
-
-  // Verify connectivity to the configured endpoint once (HTTPS GET /health).
-  endpointHealthCheck();
-}
-
 // Fetch latest measurements from /api and print every tag to Serial. Returns
 // true on success (HTTP OK + parsed). Reuses RuuviMeasurements for parsing/print;
 // display integration will build on the same parsed data.
 bool ruuviFetchAndPrint();
-
-void loop()
-{
-  uint32_t now = millis();
-  if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
-  {
-    ruuviFetchAndPrint();
-    g_lastRuuviFetchMs = now;
-  }
-  else if (now < g_rateLimitUntilMs)
-  {
-    Serial.printf("[ruuvi] rate limited, next poll in %llu s\n",
-                  (unsigned long long)((g_rateLimitUntilMs - now)/1000ULL));
-  }
-}
 
 bool ruuviFetchAndPrint()
 {
@@ -308,4 +238,78 @@ bool ruuviFetchAndPrint()
 
    display_update(ruuvi.data(), ruuvi.count());
    return true;
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(1000); // give the serial port time to initialize before WiFiManager uses it
+  Serial.println();
+   Serial.println("[wifi] Starting up...");
+
+   display_init();
+
+   WiFiManager wifiManager;
+
+#ifdef DEBUG
+  wifiManager.setDebugOutput(true);
+#else
+  wifiManager.setDebugOutput(false);
+#endif
+
+  wifiManager.setAPCallback(&configModeCallback);
+  wifiManager.setSaveConfigCallback(&saveConfigCallback);
+  wifiManager.setSaveParamsCallback(&saveParamsCallback);
+
+  wifiManager.addParameter(&backendParam);
+  wifiManager.addParameter(&apiKeyParam);
+
+  // Blocking auto-connect: tries saved credentials, and if those fail (or none
+  // are stored) opens the captive portal until a user saves new ones. Returns
+  // control to this sketch once connected or after the configured timeout.
+  if (!wifiManager.autoConnect(WIFI_AP_NAME, WIFI_AP_PASSWORD))
+  {
+    Serial.println("[wifi] Could not establish a connection; rebooting to retry.");
+    delay(3000);
+    ESP.restart();
+  }
+
+  // New credentials were saved during the portal session and need a fresh boot.
+  if (g_shouldReboot)
+  {
+    Serial.println("[wifi] Rebooting to apply new credentials...");
+    delay(3000);
+    ESP.restart();
+  }
+
+  Serial.print("[wifi] Connected as STA, IP: ");
+  Serial.println(WiFi.localIP());
+
+  Serial.println("[wifi] Configuration complete.");
+
+  // Load endpoint URL / API key persisted from the last portal session so the
+  // app has them available immediately after connecting.
+  loadCustomConfig();
+
+  // Verify connectivity to the configured endpoint once (HTTPS GET /health).
+  endpointHealthCheck();
+
+  ruuviFetchAndPrint();
+}
+
+
+
+void loop()
+{
+  uint32_t now = millis();
+  if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
+  {
+    ruuviFetchAndPrint();
+    g_lastRuuviFetchMs = now;
+  }
+  else if (now < g_rateLimitUntilMs)
+  {
+    Serial.printf("[ruuvi] rate limited, next poll in %llu s\n",
+                  (unsigned long long)((g_rateLimitUntilMs - now)/1000ULL));
+  }
 }

@@ -26,24 +26,27 @@ static const int PANEL_CX[3] = {160, 480, 800};
 
 // Icons sit in the left portion of each panel. The numeric value + unit text is
 // drawn just to the right of the icon column. Timestamp line sits near the bottom.
-static const int ICON_X = -130;   // relative to panel center (icon width is 60)
-static const int TS_Y = 478;      // timestamp line, relative to top of screen
+static const int ICON_WIDTH = 60;
+static const int ICON_HEIGHT = ICON_WIDTH;
+
+static const int ICON_X = -160;   // relative to panel center (icon width is 60)
+static const int TS_Y = 448;      // timestamp line, relative to top of screen
 
 // Number of tag panels shown on the display (must match PANEL_CX size).
 #define PANEL_COUNT 3
 
 static void draw_panel(uint8_t* fb, int cx, const RuuviMeasurement& m)
 {
-  EpdRect panel_rect = {
-      .x = cx - 150,
-      .y = 10,
-      .width = 300,
-      .height = 680,
-  };
-  epd_fill_rect(panel_rect, 0xFF, fb);
+  // EpdRect panel_rect = {
+  //     .x = cx - 150,
+  //     .y = 10,
+  //     .width = 320,
+  //     .height = 680,
+  // };
+  //epd_fill_rect(panel_rect, 0xFF, fb);
 
-  int icon_x = cx + ICON_X;
-  int value_x = cx - 75;   // value+unit text starts just right of the icons
+  int icon_x = cx + ICON_X - ICON_WIDTH / 2;
+  int value_x = icon_x + 65;   // value+unit text starts just right of the icons
   int unit_y[4] = {150, 218, 286, 354};
 
   char buf[16];
@@ -62,8 +65,8 @@ static void draw_panel(uint8_t* fb, int cx, const RuuviMeasurement& m)
     EpdRect icon_rect = {
         .x = icon_x,
         .y = unit_y[i],
-        .width = 60,
-        .height = 60,
+        .width = ICON_WIDTH,
+        .height = ICON_HEIGHT,
     };
     epd_copy_to_framebuffer(icon_rect, icon_data, fb);
 
@@ -80,7 +83,10 @@ static void draw_panel(uint8_t* fb, int cx, const RuuviMeasurement& m)
     }
 
     EpdFontProperties font_props = epd_font_properties_default();
-    epd_write_string(&OpenSans16B, buf, &value_x, &unit_y[i] + 30, fb, &font_props);
+
+    int text_x = value_x;
+    int text_y = unit_y[i] + 40;
+    epd_write_string(&OpenSans16B, buf, &text_x, &text_y, fb, &font_props);
   }
 }
 
@@ -93,6 +99,8 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     const RuuviMeasurement& m = tags[i];
     int cx = PANEL_CX[i];
 
+    // Tag names
+
     EpdFontProperties name_props = epd_font_properties_default();
     name_props.flags = EPD_DRAW_ALIGN_CENTER;
     int name_y = 68;   // relative to top of screen (above first icon row)
@@ -100,19 +108,21 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
 
     draw_panel(g_fb, cx, m);
 
-    char time_buf[16];
+    // Tag timestamps
+
+    char time_buf[18];
     struct tm tmv;
     time_t ts = (time_t)m.timestamp;
     gmtime_r(&ts, &tmv);
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
 
     EpdFontProperties ts_props = epd_font_properties_default();
-    int ts_x = cx + ICON_X;   // timestamp sits at the icon column (panel center shifted left)
+    int ts_x = cx + ICON_X - ICON_WIDTH;   // timestamp sits at the icon column (panel center shifted left)
     int ts_y = TS_Y;
     epd_write_string(&OpenSans12B, time_buf, &ts_x, &ts_y, g_fb, &ts_props);
   }
 
-  for (int i = panels; i < PANEL_COUNT; ++i)
+  /* for (int i = panels; i < PANEL_COUNT; ++i)
   {
     EpdRect panel_rect = {
         .x = PANEL_CX[i] - 150,
@@ -122,6 +132,7 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     };
     epd_fill_rect(panel_rect, 0xFF, g_fb);
   }
+ */
 
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
