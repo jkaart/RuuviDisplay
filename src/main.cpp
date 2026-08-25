@@ -12,6 +12,9 @@
 // Parse + print RuuviTag measurements from the backend /api JSON array.
 #include "RuuviMeasurement.h"
 
+// Render parsed measurements onto the e-paper display.
+#include "display.h"
+
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
 void saveConfigCallback();   // WiFi credentials changed -> reboot + persist custom config
@@ -176,9 +179,11 @@ void setup()
   Serial.begin(115200);
   delay(1000); // give the serial port time to initialize before WiFiManager uses it
   Serial.println();
-  Serial.println("[wifi] Starting up...");
+   Serial.println("[wifi] Starting up...");
 
-  WiFiManager wifiManager;
+   display_init();
+
+   WiFiManager wifiManager;
 
 #ifdef DEBUG
   wifiManager.setDebugOutput(true);
@@ -301,9 +306,6 @@ bool ruuviFetchAndPrint()
     return false;
   }
 
-  uint8_t n = ruuvi.printAll();
-  if (n) {
-    Serial.println();   // blank line between poll cycles
-  }
-  return true;
+   display_update(ruuvi.data(), ruuvi.count());
+   return true;
 }

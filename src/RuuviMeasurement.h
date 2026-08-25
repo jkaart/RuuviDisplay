@@ -22,6 +22,9 @@ public:
     bool parse(const char* json, size_t len);   // replace all stored data
     uint8_t printAll();                          // print every tag to Serial
 
+    const RuuviMeasurement* data() const { return tags_; }  // pointer to parsed tags (count_ valid)
+    uint8_t count() const { return count_; }                 // number of valid entries
+
 private:
     RuuviMeasurement tags_[kMaxTags];
     uint8_t count_ = 0;
