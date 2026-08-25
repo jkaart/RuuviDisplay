@@ -116,8 +116,11 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     epd_fill_rect(panel_rect, 0xFF, g_fb);
   }
 
-  epd_hl_update_screen(&g_hl, MODE_GC16, 0);
+  // Power on FIRST so the panel is driven during data transfer, then off.
+  // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
+  // physical panel never updates (tags never render).
   epd_poweron();
+  epd_hl_update_screen(&g_hl, MODE_GC16, 0);
   epd_poweroff();
 }
 
@@ -128,4 +131,13 @@ void display_init()
   epd_set_rotation(EPD_ROT_LANDSCAPE);
   g_fb = epd_hl_get_framebuffer(&g_hl);
   epd_hl_set_all_white(&g_hl);
+
+  // Power on FIRST so the panel is driven during data transfer, then off.
+  // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
+  // physical panel never updates (display stays uncleared). Same sequence as
+  // display_update().
+  epd_poweron();
+  epd_clear();
+  //epd_hl_update_screen(&g_hl, MODE_GC16, 0);
+  epd_poweroff();
 }
