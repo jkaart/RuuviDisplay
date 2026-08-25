@@ -21,22 +21,18 @@ static EpdiyHighlevelState g_hl;
 static uint8_t* g_fb = nullptr;
 
 // Three fixed panels on a landscape 960x758 screen. Each panel shows one tag:
-// its icon column (left), unit labels, values and the measurement timestamp.
+// its icon column (left) and the numeric value + unit text beside it.
 static const int PANEL_CX[3] = {160, 480, 800};
 
-// Icon column sits in the left third of each panel; value labels sit to the
-// right of center. Timestamp line sits near the bottom of the panel.
+// Icons sit in the left portion of each panel. The numeric value + unit text is
+// drawn just to the right of the icon column. Timestamp line sits near the bottom.
 static const int ICON_X = -130;   // relative to panel center (icon width is 60)
-static const int UNIT_X = 55;     // relative to panel center (right-aligned units)
 static const int TS_Y = 478;      // timestamp line, relative to top of screen
 
-// Number of tag panels shown on the display. Must match PANEL_CX / UNIT_LABELS size.
+// Number of tag panels shown on the display (must match PANEL_CX size).
 #define PANEL_COUNT 3
 
-// Unit labels shown next to each icon.
-static const char* UNIT_LABELS[4] = {"°C", "%RH", "hPa", "V"};
-
-static void draw_panel(uint8_t* fb, int cx)
+static void draw_panel(uint8_t* fb, int cx, const RuuviMeasurement& m)
 {
   EpdRect panel_rect = {
       .x = cx - 150,
@@ -47,8 +43,10 @@ static void draw_panel(uint8_t* fb, int cx)
   epd_fill_rect(panel_rect, 0xFF, fb);
 
   int icon_x = cx + ICON_X;
-  int unit_x = cx + UNIT_X;   // stable target for RIGHT-aligned text
+  int value_x = cx - 75;   // value+unit text starts just right of the icons
   int unit_y[4] = {150, 218, 286, 354};
+
+  char buf[16];
 
   for (int i = 0; i < 4; ++i)
   {
@@ -69,11 +67,20 @@ static void draw_panel(uint8_t* fb, int cx)
     };
     epd_copy_to_framebuffer(icon_rect, icon_data, fb);
 
-    char label[8];
-    snprintf(label, sizeof(label), "%s", UNIT_LABELS[i]);
+    if (m.temperature == 0 && m.humidity == 0 && m.pressure == 0) {
+      snprintf(buf, sizeof(buf), "%s", "--");
+    } else if (i == 0) {
+      snprintf(buf, sizeof(buf), "%.2f %s", m.temperature, "°C");
+    } else if (i == 1) {
+      snprintf(buf, sizeof(buf), "%.2f %s", m.humidity, "%RH");
+    } else if (i == 2) {
+      snprintf(buf, sizeof(buf), "%.1f %s", m.pressure / 100.0f, "hPa");
+    } else {
+      snprintf(buf, sizeof(buf), "%.3f %s", m.batteryVoltage, "V");
+    }
+
     EpdFontProperties font_props = epd_font_properties_default();
-    font_props.flags = EPD_DRAW_ALIGN_RIGHT;
-    epd_write_string(&OpenSans16B, label, &unit_x, &unit_y[i], fb, &font_props);
+    epd_write_string(&OpenSans16B, buf, &value_x, &unit_y[i] + 30, fb, &font_props);
   }
 }
 
@@ -91,7 +98,7 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     int name_y = 68;   // relative to top of screen (above first icon row)
     epd_write_string(&OpenSans24B, m.name, &cx, &name_y, g_fb, &name_props);
 
-    draw_panel(g_fb, cx);
+    draw_panel(g_fb, cx, m);
 
     char time_buf[16];
     struct tm tmv;
