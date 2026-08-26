@@ -9,6 +9,15 @@
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
 
+// Deep-sleep hold durations (microseconds for esp_sleep_enable_timer_wakeup).
+static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;   // endpoint unreachable -> short retry hold
+static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6;  // normal idle cycle between renders
+
+#include <esp_sleep.h>
+
+// Forward declaration: defined after setup()/loop() but used in setup().
+static void shortDeepSleep(uint32_t ms);
+
 // Parse + print RuuviTag measurements from the backend /api JSON array.
 #include "RuuviMeasurement.h"
 
@@ -102,11 +111,11 @@ void loadCustomConfig()
 // One-shot connectivity check to the configured endpoint. Forces HTTPS and
 // requests /health; verifies the response body contains status:"ok". No API key
 // is sent for this request. Logs OK/FAILED to Serial, never blocks display work.
-static void endpointHealthCheck()
+static bool endpointHealthCheck()
 {
   if (!g_config.backendUrl[0]) {
     Serial.println("[endpoint] no endpoint configured");
-    return;
+    return false;
   }
 
   String url = g_config.backendUrl;
@@ -122,7 +131,7 @@ static void endpointHealthCheck()
   HTTPClient http;
   if (!http.begin(url)) {
     Serial.println("[endpoint] /health FAILED: begin error");
-    return;
+    return false;
   }
   int code = http.GET();
   String body = "";
@@ -168,10 +177,11 @@ static void endpointHealthCheck()
   } else {
     Serial.printf("[endpoint] /health FAILED: HTTP %d\n", code);
   }
-
   if (!ok) {
     Serial.println("[endpoint] Endpoint unreachable or request failed.");
   }
+
+  return ok;
 }
 
 // Fetch latest measurements from /api and print every tag to Serial. Returns
@@ -247,9 +257,9 @@ void setup()
   Serial.println();
    Serial.println("[wifi] Starting up...");
 
-   display_init();
+    display_framebuffer_init();
 
-   WiFiManager wifiManager;
+    WiFiManager wifiManager;
 
 #ifdef DEBUG
   wifiManager.setDebugOutput(true);
@@ -291,25 +301,53 @@ void setup()
   // app has them available immediately after connecting.
   loadCustomConfig();
 
-  // Verify connectivity to the configured endpoint once (HTTPS GET /health).
-  endpointHealthCheck();
+   // Verify connectivity to the configured endpoint once (HTTPS GET /health).
+   bool healthOk = endpointHealthCheck();
 
-  ruuviFetchAndPrint();
+   // FAIL path: hold for a short deep-sleep without touching the panel; on wake
+   // we reboot and setup() re-runs (retries connection + health check again).
+   if (!healthOk)
+   {
+     shortDeepSleep(SHORT_HOLD_US);
+   }
+
+   // OK path: clear the physical panel once at boot so it shows fresh data.
+   display_clear_panel();
+
+ }
+
+
+
+static void shortDeepSleep(uint32_t ms)
+{
+  Serial.printf("[endpoint] Endpoint unreachable -> holding %llu s without updating the panel\n",
+                (unsigned long long)(ms / 1000ULL));
+  WiFi.setSleep(true);
+  esp_sleep_enable_timer_wakeup((uint64_t)ms);   // microseconds
+  Serial.println("[sleep] Enter to short deep sleep");
+  Serial.flush();
+  esp_deep_sleep_start();                          // wakes -> ESP.restart() -> setup re-runs
 }
-
-
 
 void loop()
 {
-  uint32_t now = millis();
-  if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
-  {
-    ruuviFetchAndPrint();
-    g_lastRuuviFetchMs = now;
-  }
-  else if (now < g_rateLimitUntilMs)
+  // uint32_t now = millis();
+  // if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
+  // {
+    ruuviFetchAndPrint();   // fetch /api and render the panel with fresh data
+    // g_lastRuuviFetchMs = now;
+
+    // Idle cycle: put the modem to light-sleep, hold the rendered panel for
+    // 30 minutes, then reboot. On wake setup() re-runs (reconnects + health check).
+    WiFi.setSleep(true);
+    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_US);   // microseconds
+    Serial.println("[sleep] Enter to the deep sleep");
+    Serial.flush();
+    esp_deep_sleep_start();                          // wakes -> ESP.restart() -> setup
+ // }
+/*   else if (now < g_rateLimitUntilMs)
   {
     Serial.printf("[ruuvi] rate limited, next poll in %llu s\n",
                   (unsigned long long)((g_rateLimitUntilMs - now)/1000ULL));
-  }
+  } */
 }

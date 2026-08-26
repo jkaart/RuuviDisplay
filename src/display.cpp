@@ -142,18 +142,21 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
   epd_poweroff();
 }
 
-void display_init()
+void display_framebuffer_init()
 {
   epd_init(&epd_board_lilygo_t5_47, &ED047TC1, EPD_OPTIONS_DEFAULT);
   g_hl = epd_hl_init(WAVEFORM);
   epd_set_rotation(EPD_ROT_LANDSCAPE);
   g_fb = epd_hl_get_framebuffer(&g_hl);
   epd_hl_set_all_white(&g_hl);
+}
 
+void display_clear_panel()
+{
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
   // physical panel never updates (display stays uncleared). Same sequence as
-  // display_update().
+  // display_update(). Drives a blank framebuffer to remove any previous content.
   epd_poweron();
   epd_clear();
   //epd_hl_update_screen(&g_hl, MODE_GC16, 0);
