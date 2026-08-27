@@ -331,23 +331,19 @@ static void shortDeepSleep(uint32_t ms)
 
 void loop()
 {
-  // uint32_t now = millis();
-  // if (now >= g_rateLimitUntilMs && (now - g_lastRuuviFetchMs) >= RUUVI_POLL_INTERVAL_MS)
-  // {
-    ruuviFetchAndPrint();   // fetch /api and render the panel with fresh data
-    // g_lastRuuviFetchMs = now;
+  ruuviFetchAndPrint(); // fetch /api and render the panel with fresh data
 
-    // Idle cycle: put the modem to light-sleep, hold the rendered panel for
-    // 30 minutes, then reboot. On wake setup() re-runs (reconnects + health check).
-    WiFi.setSleep(true);
-    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_US);   // microseconds
-    Serial.println("[sleep] Enter to the deep sleep");
-    Serial.flush();
-    esp_deep_sleep_start();                          // wakes -> ESP.restart() -> setup
- // }
-/*   else if (now < g_rateLimitUntilMs)
-  {
-    Serial.printf("[ruuvi] rate limited, next poll in %llu s\n",
-                  (unsigned long long)((g_rateLimitUntilMs - now)/1000ULL));
-  } */
+  // Idle cycle: put the modem to light-sleep, hold the rendered panel for
+  // 30 minutes, then reboot. On wake setup() re-runs (reconnects + health check).
+  WiFi.setSleep(true);
+
+  Serial.println("[sleep] Enter to the deep sleep");
+
+  esp_sleep_enable_timer_wakeup(DEEP_SLEEP_US); // microseconds
+
+  Serial.printf("[sleep] Wakeup after %d uS\n",
+                (uint64_t)(DEEP_SLEEP_US));
+  Serial.flush();
+
+  esp_deep_sleep_start(); // wakes -> ESP.restart() -> setup
 }

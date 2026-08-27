@@ -45,7 +45,7 @@ static void draw_panel(uint8_t* fb, int cx, const RuuviMeasurement& m)
   // };
   //epd_fill_rect(panel_rect, 0xFF, fb);
 
-  int icon_x = cx + ICON_X - ICON_WIDTH / 2;
+  int icon_x = cx + ICON_X - ICON_WIDTH;
   int value_x = icon_x + 65;   // value+unit text starts just right of the icons
   int unit_y[4] = {150, 218, 286, 354};
 
@@ -140,6 +140,7 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
   epd_poweron();
   epd_hl_update_screen(&g_hl, MODE_GC16, 0);
   epd_poweroff();
+  epd_deinit();
 }
 
 void display_framebuffer_init()
