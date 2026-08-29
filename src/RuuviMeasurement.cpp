@@ -1,5 +1,7 @@
 #include "RuuviMeasurement.h"
 
+#include "timezone.h"   // UTC epoch -> Europe/Helsinki local time (DST-aware)
+
 #include <ArduinoJson.h>
 #include <time.h>
 
@@ -64,9 +66,8 @@ uint8_t RuuviMeasurements::printAll()
     Serial.printf(" @ ");
 
     struct tm tm;
-    memset(&tm, 0, sizeof(tm));   // zero-init before gmtime_r: this toolchain's newlib-nano reads uninitialized stack fields of struct tm, which corrupts the computed time (e.g. drops a digit in %M)
     time_t ts_time = m.timestamp;   // unsigned long -> time_t (long long on ESP32)
-    gmtime_r(&ts_time, &tm);       // UTC -> YYYY-MM-DD HH:mm
+    utcToLocalHelsinki(ts_time, &tm);   // UTC epoch -> Helsinki local (DST-aware)
     char ts[17];
     strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", &tm);
     Serial.print(ts);

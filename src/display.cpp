@@ -1,5 +1,7 @@
 #include "display.h"
 
+#include "timezone.h"   // UTC epoch -> Europe/Helsinki local time (DST-aware)
+
 #include <epd_highlevel.h>   // transitively includes epidy.h (EpdRect, EpdFontProperties, EPD_DRAW_ALIGN_*, epd_fill_rect, ...)
 
 #include "temp_img.h"
@@ -113,7 +115,7 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     char time_buf[18];
     struct tm tmv;
     time_t ts = (time_t)m.timestamp;
-    gmtime_r(&ts, &tmv);
+    utcToLocalHelsinki(ts, &tmv);   // UTC epoch -> Helsinki local (DST-aware)
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
 
     EpdFontProperties ts_props = epd_font_properties_default();
