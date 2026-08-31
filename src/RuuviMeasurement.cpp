@@ -67,7 +67,7 @@ uint8_t RuuviMeasurements::printAll()
 
     struct tm tm;
     time_t ts_time = m.timestamp;   // unsigned long -> time_t (long long on ESP32)
-    utcToLocalHelsinki(ts_time, &tm);   // UTC epoch -> Helsinki local (DST-aware)
+    utcToLocal("Europe/Helsinki", ts_time, &tm);   // UTC epoch -> Helsinki local (DST-aware)
     char ts[17];
     strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", &tm);
     Serial.print(ts);

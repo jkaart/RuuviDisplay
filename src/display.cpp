@@ -115,7 +115,7 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     char time_buf[18];
     struct tm tmv;
     time_t ts = (time_t)m.timestamp;
-    utcToLocalHelsinki(ts, &tmv);   // UTC epoch -> Helsinki local (DST-aware)
+    utcToLocal("Europe/Helsinki", ts, &tmv);   // UTC epoch -> Helsinki local (DST-aware)
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
 
     EpdFontProperties ts_props = epd_font_properties_default();
