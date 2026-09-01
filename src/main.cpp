@@ -108,7 +108,7 @@ void loadCustomConfig()
 // Normalize the configured backend base URL to HTTPS and append a path suffix
 // ("/health" or "/api"). Forces https:// when http:// is given, and prepends
 // https:// when no scheme is present. Returns an empty String on failure.
-static String buildEndpointUrl(const char* base, const char* suffix)
+static String buildEndpointUrl(const char *base, const char *suffix)
 {
   if (!base || !base[0])
   {
@@ -130,15 +130,18 @@ static String buildEndpointUrl(const char* base, const char* suffix)
 // Extract the JSON string value for a "key": "value" pair, starting at or after
 // position keyIndex (the index of the opening quote of the key). Returns the
 // value WITHOUT surrounding quotes, or an empty String when no such pair exists.
-static String extractJsonStringValue(const String& body, const char* key, int keyIndex)
+static String extractJsonStringValue(const String &body, const char *key, int keyIndex)
 {
   // Scan past the key's closing quote and any whitespace / ':' separator.
   for (int i = keyIndex + (int)strlen(key) + 1; i < (int)body.length(); ++i)
   {
     char c = body.charAt(i);
-    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue; // whitespace
-    if (c == ':') continue;                                          // ':' separator
-    if (c != '"') return "";                                         // value opening quote missing
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+      continue; // whitespace
+    if (c == ':')
+      continue; // ':' separator
+    if (c != '"')
+      return ""; // value opening quote missing
     String val = "";
     val += c;
     int end = i + 1;
@@ -147,7 +150,8 @@ static String extractJsonStringValue(const String& body, const char* key, int ke
       val += body.charAt(end);
       ++end;
     }
-    if (end >= (int)body.length()) return ""; // unterminated string
+    if (end >= (int)body.length())
+      return "";                  // unterminated string
     return val.substring(1, end); // drop opening quote -> bare value
   }
   return "";
