@@ -189,6 +189,7 @@ static bool endpointHealthCheck()
   if (code == HTTP_CODE_OK && !body.isEmpty())
   {
     String status = extractJsonStringValue(body, "status", body.indexOf("\"status\""));
+    ok = true; // reachable + HTTP OK -> success regardless of the logged status value
     Serial.printf("[endpoint] /health OK (%d bytes) status=%s\n", body.length(), status.c_str());
   }
   else if (code == HTTP_CODE_OK)
