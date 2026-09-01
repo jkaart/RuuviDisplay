@@ -10,13 +10,13 @@
 #include <NetworkClientSecure.h>
 
 // Deep-sleep hold durations (microseconds for esp_sleep_enable_timer_wakeup).
-static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;   // endpoint unreachable -> short retry hold
-static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6;  // normal idle cycle between renders
+static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;  // endpoint unreachable -> short retry hold
+static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle between renders
 
 #include <esp_sleep.h>
 
 // Forward declaration: defined after setup()/loop() but used in setup().
-static void shortDeepSleep(uint32_t ms);
+static void shortDeepSleep(uint32_t us);
 
 // Parse + print RuuviTag measurements from the backend /api JSON array.
 #include "RuuviMeasurement.h"
@@ -26,20 +26,10 @@ static void shortDeepSleep(uint32_t ms);
 
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
-void saveConfigCallback();   // WiFi credentials changed -> reboot + persist custom config
-void saveParamsCallback();   // custom params (endpoint/api key) saved -> persist, no reboot
+void saveConfigCallback(); // WiFi credentials changed -> reboot + persist custom config
+void saveParamsCallback(); // custom params (endpoint/api key) saved -> persist, no reboot
 
 static bool g_shouldReboot = false;
-
-// -- Rate limiting -----------------------------------------------------------
-// Backend allows at most 10 requests per 15 min (~90s spacing). We poll more
-// conservatively (2 min) to stay safely under the limit. On HTTP 429 we simply
-// wait for the next scheduled poll cycle; no response-header reading is needed
-// because this library version exposes no public header getter.
-static uint32_t g_lastRuuviFetchMs = 0;   // millis of last /api fetch attempt
-static uint32_t g_rateLimitUntilMs = 0;   // absolute millis until which we must not poll
-
-const uint32_t RUUVI_POLL_INTERVAL_MS = 120000;   // default spacing between /api polls
 
 // -- Captive portal custom fields (must outlive the portal session) ----------
 WiFiManagerParameter backendParam("backend_url", "Backend URL", "", 64);
@@ -58,17 +48,23 @@ void loadCustomConfig();
 void persistCustomConfig()
 {
   String backendUrl = backendParam.getValue();
-  String apiKey   = apiKeyParam.getValue();
+  String apiKey = apiKeyParam.getValue();
 
   prefs.begin(PREFERENCES_NAME, false);
-  if (!backendUrl.isEmpty()) {
+  if (!backendUrl.isEmpty())
+  {
     prefs.putString("backend_url", backendUrl);
-  } else {
+  }
+  else
+  {
     prefs.remove("backend_url");
   }
-  if (!apiKey.isEmpty()) {
+  if (!apiKey.isEmpty())
+  {
     prefs.putString("api_key", apiKey);
-  } else {
+  }
+  else
+  {
     prefs.remove("api_key");
   }
   prefs.end();
@@ -96,11 +92,12 @@ void saveParamsCallback()
 
 void loadCustomConfig()
 {
-  if (!prefs.begin(PREFERENCES_NAME, false)) {
+  if (!prefs.begin(PREFERENCES_NAME, false))
+  {
     return;
   }
   String backendUrl = prefs.getString("backend_url", "");
-  String apiKey   = prefs.getString("api_key", "");
+  String apiKey = prefs.getString("api_key", "");
   prefs.end();
 
   // Populate g_config (truncate to the fixed buffer sizes).
@@ -108,34 +105,79 @@ void loadCustomConfig()
   apiKey.toCharArray(g_config.apiKey, sizeof(g_config.apiKey));
 }
 
-// One-shot connectivity check to the configured endpoint. Forces HTTPS and
-// requests /health; verifies the response body contains status:"ok". No API key
-// is sent for this request. Logs OK/FAILED to Serial, never blocks display work.
+// Normalize the configured backend base URL to HTTPS and append a path suffix
+// ("/health" or "/api"). Forces https:// when http:// is given, and prepends
+// https:// when no scheme is present. Returns an empty String on failure.
+static String buildEndpointUrl(const char* base, const char* suffix)
+{
+  if (!base || !base[0])
+  {
+    return "";
+  }
+  String url = base;
+  if (url.startsWith("http://"))
+  {
+    url.replace("http://", "https://"); // force HTTPS
+  }
+  else if (!url.startsWith("https://"))
+  {
+    url = "https://" + url; // no scheme -> prepend https://
+  }
+  url += suffix;
+  return url;
+}
+
+// Extract the JSON string value for a "key": "value" pair, starting at or after
+// position keyIndex (the index of the opening quote of the key). Returns the
+// value WITHOUT surrounding quotes, or an empty String when no such pair exists.
+static String extractJsonStringValue(const String& body, const char* key, int keyIndex)
+{
+  // Scan past the key's closing quote and any whitespace / ':' separator.
+  for (int i = keyIndex + (int)strlen(key) + 1; i < (int)body.length(); ++i)
+  {
+    char c = body.charAt(i);
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue; // whitespace
+    if (c == ':') continue;                                          // ':' separator
+    if (c != '"') return "";                                         // value opening quote missing
+    String val = "";
+    val += c;
+    int end = i + 1;
+    while (end < (int)body.length() && body.charAt(end) != '"')
+    {
+      val += body.charAt(end);
+      ++end;
+    }
+    if (end >= (int)body.length()) return ""; // unterminated string
+    return val.substring(1, end); // drop opening quote -> bare value
+  }
+  return "";
+}
+
+// One-shot connectivity check to the configured endpoint. Uses buildEndpointUrl
+// to force HTTPS and append /health; verifies the response body contains a
+// status:"ok" field. No API key is sent for this request. Logs OK/FAILED to
+// Serial, never blocks display work.
 static bool endpointHealthCheck()
 {
-  if (!g_config.backendUrl[0]) {
+  String url = buildEndpointUrl(g_config.backendUrl, "/health");
+  if (url.isEmpty())
+  {
     Serial.println("[endpoint] no endpoint configured");
     return false;
   }
 
-  String url = g_config.backendUrl;
-  if (url.startsWith("http://")) {
-    url.replace("http://", "https://");   // force HTTPS
-  } else if (!url.startsWith("https://") && !url.isEmpty()) {
-    url = "https://" + url;               // no scheme -> prepend https://
-  }
-  url += "/health";
-
   Serial.printf("[endpoint] GET %s\n", url.c_str());
 
   HTTPClient http;
-  if (!http.begin(url)) {
+  if (!http.begin(url))
+  {
     Serial.println("[endpoint] /health FAILED: begin error");
     return false;
   }
   int code = http.GET();
   String body = "";
-  if (code == HTTP_CODE_OK) {
+  if (code == HTTP_CODE_OK)
+  {
     body = http.getString();
   }
   http.end();
@@ -144,40 +186,22 @@ static bool endpointHealthCheck()
   // /health check verifies. We also read the "status" field (if present) purely
   // for informational logging — we do not fail solely because its format differs.
   bool ok = false;
-  if (code == HTTP_CODE_OK && !body.isEmpty()) {
-    int sIdx = body.indexOf("\"status\"");   // position of opening quote
-    String status = "";
-    if (sIdx >= 0) {
-      for (int i = sIdx + 8; i < (int)body.length(); i++) {
-        char c = body.charAt(i);
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue;   // skip all whitespace
-        if (c == ':') continue;                // skip ':' separator
-        if (c == '"') {                        // start of the value string
-          String val = "";
-          val += c;
-          i++;
-          while (i < (int)body.length() && body.charAt(i) != '"') {
-            val += body.charAt(i);
-            i++;
-          }
-          if (!val.isEmpty() && val[0] == '"') {   // strip surrounding JSON quotes
-            val = val.substring(1, val.length());   // endIndex is exclusive -> drops only the opening quote
-          }
-          status = val;
-          break;
-        }
-        break;                                 // value ends (comma, }, etc.)
-      }
-    }
-    ok = true;
+  if (code == HTTP_CODE_OK && !body.isEmpty())
+  {
+    String status = extractJsonStringValue(body, "status", body.indexOf("\"status\""));
     Serial.printf("[endpoint] /health OK (%d bytes) status=%s\n", body.length(), status.c_str());
-  } else if (code == HTTP_CODE_OK) {
+  }
+  else if (code == HTTP_CODE_OK)
+  {
     Serial.println("[endpoint] /health OK (empty body)");
     ok = true;
-  } else {
+  }
+  else
+  {
     Serial.printf("[endpoint] /health FAILED: HTTP %d\n", code);
   }
-  if (!ok) {
+  if (!ok)
+  {
     Serial.println("[endpoint] Endpoint unreachable or request failed.");
   }
 
@@ -191,63 +215,66 @@ bool ruuviFetchAndPrint();
 
 bool ruuviFetchAndPrint()
 {
-  if (!g_config.backendUrl[0]) {
+  String url = buildEndpointUrl(g_config.backendUrl, "/api");
+  if (url.isEmpty())
+  {
     Serial.println("[ruuvi] no backend URL configured");
     return false;
   }
 
-  String url = g_config.backendUrl;
-  if (url.startsWith("http://")) {
-    url.replace("http://", "https://");   // force HTTPS
-  } else if (!url.startsWith("https://") && !url.isEmpty()) {
-    url = "https://" + url;               // no scheme -> prepend https://
-  }
-  url += "/api";
-
   Serial.printf("[ruuvi] GET %s\n", url.c_str());
 
   HTTPClient http;
-  if (!http.begin(url)) {
+  if (!http.begin(url))
+  {
     Serial.println("[ruuvi] /api FAILED: begin error");
     return false;
   }
 
   // Ruuvitag measurement API requires an x-api-key header. Send it only when a
   // key is configured (an empty/missing key would just trigger a 401).
-  if (!g_config.apiKey[0]) {
+  if (!g_config.apiKey[0])
+  {
     Serial.println("[ruuvi] no API key configured -> backend will return HTTP 401");
-  } else {
+  }
+  else
+  {
     http.addHeader("x-api-key", g_config.apiKey);
   }
 
   int code = http.GET();
   String body;
-  if (code == HTTP_CODE_OK) {
+  if (code == HTTP_CODE_OK)
+  {
     body = http.getString();
   }
   http.end();
 
-  if (code == HTTP_CODE_UNAUTHORIZED) {   // 401: missing/invalid API key
+  if (code == HTTP_CODE_UNAUTHORIZED)
+  { // 401: missing/invalid API key
     Serial.println("[ruuvi] /api rejected with HTTP 401 -> check the configured x-api-key");
     return false;
   }
-  if (code == HTTP_CODE_TOO_MANY_REQUESTS) {   // 429: backend rate limit hit
+  if (code == HTTP_CODE_TOO_MANY_REQUESTS)
+  { // 429: backend rate limit hit
     Serial.printf("[ruuvi] /api rate limited by backend (HTTP %d); retrying next poll cycle\n", code);
     return false;
   }
-  if (code != HTTP_CODE_OK || body.isEmpty()) {
+  if (code != HTTP_CODE_OK || body.isEmpty())
+  {
     Serial.printf("[ruuvi] /api FAILED: HTTP %d\n", code);
     return false;
   }
 
   RuuviMeasurements ruuvi;
-  if (!ruuvi.parse(body.c_str(), body.length())) {
+  if (!ruuvi.parse(body.c_str(), body.length()))
+  {
     Serial.println("[ruuvi] parse failed, no data printed");
     return false;
   }
 
-   display_update(ruuvi.data(), ruuvi.count());
-   return true;
+  display_update(ruuvi.data(), ruuvi.count());
+  return true;
 }
 
 void setup()
@@ -255,11 +282,11 @@ void setup()
   Serial.begin(115200);
   delay(1000); // give the serial port time to initialize before WiFiManager uses it
   Serial.println();
-   Serial.println("[wifi] Starting up...");
+  Serial.println("[wifi] Starting up...");
 
-    display_framebuffer_init();
+  display_framebuffer_init();
 
-    WiFiManager wifiManager;
+  WiFiManager wifiManager;
 
 #ifdef DEBUG
   wifiManager.setDebugOutput(true);
@@ -301,32 +328,29 @@ void setup()
   // app has them available immediately after connecting.
   loadCustomConfig();
 
-   // Verify connectivity to the configured endpoint once (HTTPS GET /health).
-   bool healthOk = endpointHealthCheck();
+  // Verify connectivity to the configured endpoint once (HTTPS GET /health).
+  bool healthOk = endpointHealthCheck();
 
-   // FAIL path: hold for a short deep-sleep without touching the panel; on wake
-   // we reboot and setup() re-runs (retries connection + health check again).
-   if (!healthOk)
-   {
-     shortDeepSleep(SHORT_HOLD_US);
-   }
+  // FAIL path: hold for a short deep-sleep without touching the panel; on wake
+  // we reboot and setup() re-runs (retries connection + health check again).
+  if (!healthOk)
+  {
+    shortDeepSleep(SHORT_HOLD_US);
+  }
 
-   // OK path: clear the physical panel once at boot so it shows fresh data.
-   display_clear_panel();
+  // OK path: clear the physical panel once at boot so it shows fresh data.
+  display_clear_panel();
+}
 
- }
-
-
-
-static void shortDeepSleep(uint32_t ms)
+static void shortDeepSleep(uint32_t us)
 {
   Serial.printf("[endpoint] Endpoint unreachable -> holding %llu s without updating the panel\n",
-                (unsigned long long)(ms / 1000ULL));
+                (unsigned long long)(us / 1000ULL));
   WiFi.setSleep(true);
-  esp_sleep_enable_timer_wakeup((uint64_t)ms);   // microseconds
+  esp_sleep_enable_timer_wakeup((uint64_t)us); // microseconds
   Serial.println("[sleep] Enter to short deep sleep");
   Serial.flush();
-  esp_deep_sleep_start();                          // wakes -> ESP.restart() -> setup re-runs
+  esp_deep_sleep_start(); // deep sleep auto-reboots into a fresh boot -> setup re-runs
 }
 
 void loop()
