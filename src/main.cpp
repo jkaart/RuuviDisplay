@@ -349,7 +349,7 @@ void setup()
 
 static void shortDeepSleep(uint32_t us)
 {
-  Serial.printf("[endpoint] Endpoint unreachable -> holding %llu s without updating the panel\n",
+  Serial.printf("[endpoint] Endpoint unreachable -> holding %llu us without updating the panel\n",
                 (unsigned long long)(us / 1000ULL));
   WiFi.setSleep(true);
   esp_sleep_enable_timer_wakeup((uint64_t)us); // microseconds
@@ -370,7 +370,7 @@ void loop()
 
   esp_sleep_enable_timer_wakeup(DEEP_SLEEP_US); // microseconds
 
-  Serial.printf("[sleep] Wakeup after %d uS\n",
+  Serial.printf("[sleep] Wakeup after %d us\n",
                 (uint64_t)(DEEP_SLEEP_US));
   Serial.flush();
 
