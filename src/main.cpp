@@ -236,7 +236,7 @@ bool ruuviFetchAndPrint()
   String url = buildEndpointUrl(g_config.backendUrl, "/api");
   if (url.isEmpty())
   {
-    const char* msg = "no backend URL configured";
+    const char *msg = "no backend URL configured";
     Serial.println("[ruuvi] " + String(msg));
     display_show_error(msg);
     return false;
@@ -247,7 +247,7 @@ bool ruuviFetchAndPrint()
   HTTPClient http;
   if (!http.begin(url))
   {
-    const char* msg = "/api FAILED: begin error";
+    const char *msg = "/api FAILED: begin error";
     Serial.println("[ruuvi] " + String(msg));
     display_show_error(msg);
     return false;
@@ -274,7 +274,7 @@ bool ruuviFetchAndPrint()
 
   if (code == HTTP_CODE_UNAUTHORIZED)
   { // 401: missing/invalid API key
-    const char* msg = "/api rejected with HTTP 401 -> check the configured x-api-key";
+    const char *msg = "/api rejected with HTTP 401 -> check the configured x-api-key";
     Serial.println("[ruuvi] " + String(msg));
     display_show_error(msg);
     return false;
@@ -299,7 +299,7 @@ bool ruuviFetchAndPrint()
   RuuviMeasurements ruuvi;
   if (!ruuvi.parse(body.c_str(), body.length()))
   {
-    const char* msg = "parse failed, no data printed";
+    const char *msg = "parse failed, no data printed";
     Serial.println("[ruuvi] " + String(msg));
     display_show_error(msg);
     return false;
