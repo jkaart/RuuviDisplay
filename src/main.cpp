@@ -39,6 +39,10 @@ WiFiManagerParameter apiKeyParam("api_key", "API key", "", 64);
 AppConfig g_config;
 Preferences prefs;
 
+// Human-readable health-check failure reason, set by endpointHealthCheck() and shown
+// at the bottom-left of the panel on the FAIL path (same wording as the Serial log).
+static char g_healthError[80];
+
 // Read the endpoint URL / API key from Preferences into g_config. Called once
 // after a successful WiFi connection so the app always has current values.
 void loadCustomConfig();
@@ -163,10 +167,15 @@ static String extractJsonStringValue(const String &body, const char *key, int ke
 // Serial, never blocks display work.
 static bool endpointHealthCheck()
 {
+  // Reset the displayed reason for this boot; every failure branch sets it again.
+  g_healthError[0] = '\0';
+
   String url = buildEndpointUrl(g_config.backendUrl, "/health");
   if (url.isEmpty())
   {
     Serial.println("[endpoint] no endpoint configured");
+    strncpy(g_healthError, "no endpoint configured", sizeof(g_healthError) - 1);
+    g_healthError[sizeof(g_healthError) - 1] = '\0';
     return false;
   }
 
@@ -176,6 +185,8 @@ static bool endpointHealthCheck()
   if (!http.begin(url))
   {
     Serial.println("[endpoint] /health FAILED: begin error");
+    strncpy(g_healthError, "/health FAILED: begin error", sizeof(g_healthError) - 1);
+    g_healthError[sizeof(g_healthError) - 1] = '\0';
     return false;
   }
   int code = http.GET();
@@ -204,6 +215,8 @@ static bool endpointHealthCheck()
   else
   {
     Serial.printf("[endpoint] /health FAILED: HTTP %d\n", code);
+    strncpy(g_healthError, "Endpoint unreachable or request failed", sizeof(g_healthError) - 1);
+    g_healthError[sizeof(g_healthError) - 1] = '\0';
   }
   if (!ok)
   {
@@ -223,7 +236,9 @@ bool ruuviFetchAndPrint()
   String url = buildEndpointUrl(g_config.backendUrl, "/api");
   if (url.isEmpty())
   {
-    Serial.println("[ruuvi] no backend URL configured");
+    const char* msg = "no backend URL configured";
+    Serial.println("[ruuvi] " + String(msg));
+    display_show_error(msg);
     return false;
   }
 
@@ -232,7 +247,9 @@ bool ruuviFetchAndPrint()
   HTTPClient http;
   if (!http.begin(url))
   {
-    Serial.println("[ruuvi] /api FAILED: begin error");
+    const char* msg = "/api FAILED: begin error";
+    Serial.println("[ruuvi] " + String(msg));
+    display_show_error(msg);
     return false;
   }
 
@@ -257,24 +274,34 @@ bool ruuviFetchAndPrint()
 
   if (code == HTTP_CODE_UNAUTHORIZED)
   { // 401: missing/invalid API key
-    Serial.println("[ruuvi] /api rejected with HTTP 401 -> check the configured x-api-key");
+    const char* msg = "/api rejected with HTTP 401 -> check the configured x-api-key";
+    Serial.println("[ruuvi] " + String(msg));
+    display_show_error(msg);
     return false;
   }
   if (code == HTTP_CODE_TOO_MANY_REQUESTS)
   { // 429: backend rate limit hit
-    Serial.printf("[ruuvi] /api rate limited by backend (HTTP %d); retrying next poll cycle\n", code);
+    char msg[80];
+    snprintf(msg, sizeof(msg), "/api rate limited by backend (HTTP %d); retrying next poll cycle", code);
+    Serial.printf("[ruuvi] %s\n", msg);
+    display_show_error(msg);
     return false;
   }
   if (code != HTTP_CODE_OK || body.isEmpty())
   {
-    Serial.printf("[ruuvi] /api FAILED: HTTP %d\n", code);
+    char msg[48];
+    snprintf(msg, sizeof(msg), "/api FAILED: HTTP %d", code);
+    Serial.printf("[ruuvi] %s\n", msg);
+    display_show_error(msg);
     return false;
   }
 
   RuuviMeasurements ruuvi;
   if (!ruuvi.parse(body.c_str(), body.length()))
   {
-    Serial.println("[ruuvi] parse failed, no data printed");
+    const char* msg = "parse failed, no data printed";
+    Serial.println("[ruuvi] " + String(msg));
+    display_show_error(msg);
     return false;
   }
 
@@ -340,6 +367,10 @@ void setup()
   // we reboot and setup() re-runs (retries connection + health check again).
   if (!healthOk)
   {
+    // Show the failure reason at the bottom-left (same wording as the Serial log). The
+    // driven line persists on e-paper across the reboot until a successful fetch redraws.
+    display_show_error(g_healthError);
+
     shortDeepSleep(SHORT_HOLD_US);
   }
 

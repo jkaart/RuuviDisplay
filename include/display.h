@@ -16,3 +16,9 @@ void display_clear_panel();
 // Render all available RuuviTag measurements onto the screen and push to the panel.
 // Called after a successful /api poll in loop().
 void display_update(const RuuviMeasurement* tags, uint8_t count);
+
+// Draw an error/status message at the bottom-left of the panel (in its own band
+// below the tag data) and drive the physical panel. Called on every /api failure
+// path in main.cpp so a failed fetch still shows the retained tag data plus why it
+// failed. Does NOT clear existing content; only adds the status line into the band.
+void display_show_error(const char* message);

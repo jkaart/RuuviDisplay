@@ -39,6 +39,11 @@ static const int ICON_MARGIN = 5;     // icon's margin from the panel edge (both
 static const int GAP         = 5;     // gap between icon and value+unit text (= icon's right margin)
 
 static const int TS_Y = 448;          // timestamp line, relative to top of screen
+static const int SCREEN_W = 960;      // landscape framebuffer width (ED047TC1)
+static const int SCREEN_H = 540;      // landscape framebuffer height
+
+static const int ERROR_BAND_Y_GAP = 4; // error line small gap
+static const int ERROR_BAND_Y = 530 - ERROR_BAND_Y_GAP;  // status/error line sits near the bottom edge, above a small margin
 
 // Number of tag panels shown on the display (must match PANEL_CX size).
 #define PANEL_COUNT 3
@@ -123,6 +128,12 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
     epd_write_string(&OpenSans12B, time_buf, &ts_x, &ts_y, g_fb, &ts_props);
   }
 
+  // Erase the bottom band so any error line from a previous failed cycle is gone.
+  // Tags are drawn above ERROR_BAND_Y, so this only clears where the status line lives;
+  // it does not touch the retained tag data. Without it e-paper's persistent pixels would
+  // keep showing an old error message on every subsequent successful render.
+  epd_fill_rect(EpdRect{ .x = 0, .y = ERROR_BAND_Y, .width = SCREEN_W, .height = SCREEN_H - ERROR_BAND_Y }, 0xFF, g_fb);
+
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
   // physical panel never updates (tags never render).
@@ -130,6 +141,35 @@ void display_update(const RuuviMeasurement* tags, uint8_t count)
   epd_hl_update_screen(&g_hl, MODE_GC16, 0);
   epd_poweroff();
   epd_deinit();
+}
+
+// Draw an error/status message at the bottom-left of the panel and drive it. The tag
+// data rendered by display_update() is preserved (e-paper retains its pixels), so a
+// failed fetch shows the latest tags plus this line. Only the status text is added; no
+// existing content is erased here.
+void display_show_error(const char* message)
+{
+  char msg[65] = {0};
+  if (message && message[0])
+  {
+    snprintf(msg, sizeof(msg), "%s", message);
+  }
+  else
+  {
+    snprintf(msg, sizeof(msg), "--");
+  }
+
+  EpdFontProperties props = epd_font_properties_default();
+  props.flags = EPD_DRAW_ALIGN_LEFT;   // flush to the left edge of the screen
+  int x = 2;                           // small margin so glyphs are not clipped at x=0
+  int y = ERROR_BAND_Y;            // vertically centered in the bottom band
+
+  epd_write_string(&OpenSans12B, msg, &x, &y, g_fb, &props);
+
+  // Drive the physical panel.
+  epd_poweron();
+  epd_hl_update_screen(&g_hl, MODE_GC16, 0);
+  epd_poweroff();
 }
 
 void display_framebuffer_init()
