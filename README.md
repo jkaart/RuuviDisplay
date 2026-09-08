@@ -2,14 +2,14 @@
 
 RuuviDisplay is an ESP32-based e-paper display for showing data from [RuuviTag](https://ruuvi.com/) sensors.
 
-The project is designed for the **LilyGO T5 4.7" e-paper display** and uses the EPDiy library to drive the 960 × 758 ED047TC1 display.
+The project is designed for the **LilyGO T5 4.7" e-paper display** and uses the EPDiy library to drive the 960 × 560 ED047TC1 display.
 
 The device connects to Wi-Fi, retrieves the latest RuuviTag measurements from a configurable HTTPS backend API, displays the data on the e-paper screen, and then enters deep sleep to minimize power consumption.
 
 ## Features
 
 - Designed for the **LilyGO T5 4.7" e-paper display**
-- 960 × 758 pixel landscape e-paper display
+- 960 × 560 pixel landscape e-paper display
 - Displays up to **three RuuviTag sensors**
 - Temperature
 - Relative humidity
@@ -178,18 +178,18 @@ Each panel contains:
 A simplified representation:
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                                                              │
-│        Living Room          Bedroom             Outdoor                      │
-│                                                                              │
-│  🌡 21.42 °C           🌡 20.18 °C         🌡 12.73 °C                       │
-│  💧 45.73 %RH          💧 51.21 %RH        💧 78.42 %RH                      │
-│  ⏱ 1013.2 hPa         ⏱ 1012.8 hPa       ⏱ 1008.4 hPa                     │
-│  🔋 2.987 V            🔋 2.943 V          🔋 2.801 V                        │
-│                                                                              │
-│  01/09/26 18:30:12     01/09/26 18:29:58   01/09/26 18:29:41                 │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│        Living Room          Bedroom             Outdoor      │
+│                                                              │
+│  🌡 21.42 °C           🌡 20.18 °C         🌡 12.73 °C       │
+│  💧 45.73 %RH          💧 51.21 %RH        💧 78.42 %RH      │
+│  ⏱ 1013.2 hPa         ⏱ 1012.8 hPa       ⏱ 1008.4 hPa     │
+│  🔋 2.987 V            🔋 2.943 V          🔋 2.801 V        │
+│                                                              │
+│  01/09/26 18:30:12     01/09/26 18:29:58   01/09/26 18:29:41 │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 The actual display uses custom bitmap icons and Open Sans fonts.
@@ -348,7 +348,7 @@ The framebuffer required by the e-paper display is stored using the available PS
 ## Project Structure
 
 ```text
-RuuviDisplay/
+(Project root folder)/
 ├── include/
 │   ├── display.h
 │   ├── timezone.h
