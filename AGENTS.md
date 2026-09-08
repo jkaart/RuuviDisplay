@@ -139,19 +139,18 @@ considering the alternatives.
 This is an ESP32-based PlatformIO project for the LilyGo T-Display (T5-47) e-Paper display device. The project uses Arduino framework with PlatformIO build system.
 
 **Hardware:**
+
 - ESP32-WROVER-KIT or compatible boards (ESP32/ESP32-S3)
-- E-Ink e-Paper display (ED047TC1 - 4.7 inch)
+- E-Ink e-Paper display (ED047TC1 - 4.7 inch - 960x540 px)
 - EPDiy library for e-paper control
 - WiFiManager for web-based configuration
-
-**Location:** `~/Documents/PlatformIO/Projects/RuuviDisplay`
 
 ---
 
 ## Project Structure
 
-```
-RuuviDisplay/
+```text
+(projectRoot)/
 ├── old/                          # Reference: working demo (DO NOT MODIFY)
 │   ├── src/main.cpp             # Working reference implementation
 │   ├── src/pins.h               # Pin definitions for T5-47 boards
@@ -169,6 +168,7 @@ RuuviDisplay/
 ### PlatformIO Configuration (`platformio.ini`)
 
 **Common Settings:**
+
 - Platform: `espressif32`
 - Framework: `arduino`
 - Board: `esp-wrover-kit` (or compatible)
@@ -176,6 +176,7 @@ RuuviDisplay/
 - Monitor speed: `115200`
 
 **Build Flags:**
+
 ```ini
 -DBOARD_HAS_PSRAM              # Enable PSRAM for display buffer
 -DCONFIG_EPD_DISPLAY_TYPE_ED047TC1  # ED047TC1 e-paper model
@@ -184,6 +185,7 @@ RuuviDisplay/
 ```
 
 **Dependencies:**
+
 - `tzapu/WiFiManager@^2.0.17` - Web configuration server
 - `vroland/epdiy@^2.1.3` - e-Paper display library
 
@@ -192,8 +194,9 @@ RuuviDisplay/
 ## Hardware Pin Definitions
 
 ### T5-47 Board (ESP32)
+
 | Function | Pin |
-|----------|-----|
+| ---------- | ----- |
 | BUTTON_1 | 34 |
 | BUTTON_2 | 35 |
 | BUTTON_3 | 39 |
@@ -204,8 +207,9 @@ RuuviDisplay/
 | SD_CS | 15 |
 
 ### T5-47 Plus Board (ESP32-S3)
+
 | Function | Pin |
-|----------|-----|
+| ---------- | ----- |
 | BUTTON_1 | 21 |
 | BATT_PIN | 14 |
 | SD_MISO | 16 |
@@ -219,11 +223,13 @@ RuuviDisplay/
 
 ### 1. Initial Setup
 
+run in project root folder:
+
 ```bash
-cd ~/Documents/PlatformIO/Projects/RuuviDisplay
-pio run -t build          # Build project
-pio run -t upload         # Upload to board
-pio run -t monitor        # Monitor serial output
+source ~/.platformio/penv/bin/activate # Activate Python Portable Environment for PlatformIO CLI
+pio run -t build                       # Build project
+pio run -t upload                      # Upload to board
+pio run -t monitor                     # Monitor serial output
 ```
 
 ### 2. Reference Implementation
@@ -269,6 +275,7 @@ Every feature should follow this workflow:
 #### Step 1 — Understand
 
 Determine:
+
 - What is the actual requirement?
 - What existing code is related to it?
 - What constraints does the hardware impose?
@@ -276,6 +283,7 @@ Determine:
 #### Step 2 — Investigate
 
 Before writing code:
+
 - search the repository
 - inspect existing dependencies
 - inspect Arduino/ESP32 APIs
@@ -294,6 +302,7 @@ asked to do so.
 #### Step 4 — Implement
 
 Only after the approach is established:
+
 - modify/create files in `src/`
 - reuse existing code where appropriate
 - use libraries instead of custom implementations where appropriate
@@ -303,17 +312,22 @@ Only after the approach is established:
 
 Run:
 
-    pio run
+  ```bash
+  source ~/.platformio/penv/bin/activate && pio run
+  ```
 
 and, when applicable:
 
-    pio test
+  ```bash
+  source ~/.platformio/penv/bin/activate && pio test
+  ```
 
 Fix any errors introduced by the implementation.
 
 #### Step 6 — Summarize
 
 Report:
+
 - what changed
 - which libraries were added or used
 - why they were chosen
@@ -323,8 +337,8 @@ Report:
 ### 4. Testing
 
 ```bash
-pio run -t test           # Run tests if available
-pio run -t monitor        # Monitor for debugging
+source ~/.platformio/penv/bin/activate && pio run -t test           # Run tests if available
+source ~/.platformio/penv/bin/activate && pio run -t monitor        # Monitor for debugging
 ```
 
 ---
@@ -332,23 +346,25 @@ pio run -t monitor        # Monitor for debugging
 ## Common Tasks
 
 ### Build & Upload
+
 ```bash
 # Full build and upload
-pio run
+source ~/.platformio/penv/bin/activate && pio run
 
 # Specific target
-pio run -t build
-pio run -t upload
-pio run -t clean          # Clean build artifacts
+source ~/.platformio/penv/bin/activate && pio run -t build
+source ~/.platformio/penv/bin/activate && pio run -t upload
+source ~/.platformio/penv/bin/activate && pio run -t clean          # Clean build artifacts
 ```
 
 ### Debugging
+
 ```bash
 # Monitor with auto-reset
-pio run -t monitor --follow
+source ~/.platformio/penv/bin/activate && pio run -t monitor --follow
 
 # Upload with verbose output
-pio run -t upload -v
+source ~/.platformio/penv/bin/activate && pio run -t upload -v
 ```
 
 ---
@@ -358,12 +374,14 @@ pio run -t upload -v
 ⚠️ **DO NOT MODIFY** files in the `old/` folder - it contains reference code only.
 
 ✅ **CREATE NEW FILES** in:
+
 - `src/` - Main source code
 - `include/` - Header files
 - `lib/` - Project-specific libraries
 - `test/` - Test cases
 
 📝 **When referencing old code:**
+
 - Copy patterns from `old/src/main.cpp` as starting point
 - Adapt pin definitions from `old/src/pins.h` for your board variant
 - Study IotWebConf usage in the reference implementation
@@ -386,17 +404,9 @@ board = t-display-v2      # Alternative board if needed
 
 ## External Resources
 
-- **PlatformIO Docs**: https://docs.platformio.org/
-- **Arduino ESP32 Core**: https://github.com/espressif/arduino-esp32
-- **WifiManager**: https://github.com/tzapu/WiFiManager
-- **EPDiy Library**: https://github.com/vroland/epdiy
+- **PlatformIO Docs**: [https://docs.platformio.org/](https://docs.platformio.org/)
+- **Arduino ESP32 Core**: [https://github.com/espressif/arduino-esp32](https://github.com/espressif/arduino-esp32)
+- **WifiManager**: [https://github.com/tzapu/WiFiManager](https://github.com/tzapu/WiFiManager)
+- **EPDiy Library**: [https://github.com/vroland/epdiy](https://github.com/vroland/epdiy)
 
 ---
-
-## Quick Start Checklist
-
-- [ ] Verify board is connected via USB
-- [ ] Run `pio run` to build and upload
-- [ ] Open monitor with `pio run -t monitor`
-- [ ] Check serial output for "Ready." message
-- [ ] Access web interface at device IP (if WiFi configured)
