@@ -2,14 +2,14 @@
 
 RuuviDisplay is an ESP32-based e-paper display for showing data from [RuuviTag](https://ruuvi.com/) sensors.
 
-The project is designed for the **LilyGO T5 4.7" e-paper display** and uses the EPDiy library to drive the 960 × 560 pixel ED047TC1 display.
+The project is designed for the **LilyGO T5 4.7" e-paper display** and uses the EPDiy library to drive the 960 × 540 pixel ED047TC1 display.
 
 The device connects to Wi-Fi, retrieves the latest RuuviTag measurements from a configurable HTTPS backend API, displays the data on the e-paper screen, and then enters deep sleep to minimize power consumption.
 
 ## Features
 
 - Designed for the **LilyGO T5 4.7" e-paper display**
-- 960 × 560 pixel landscape e-paper display
+- 960 × 540 pixel landscape e-paper display
 - Displays up to **three RuuviTag sensors**
 - Temperature
 - Relative humidity
@@ -164,7 +164,7 @@ The firmware keeps the latest measurement for each unique MAC address.
 
 ## Display Layout
 
-The 960 × 758 display is divided into three sensor panels.
+The 960 × 540 display is divided into three sensor panels.
 
 Each panel contains:
 
@@ -426,7 +426,7 @@ The conversion is daylight-saving-time aware.
 ## Current Limitations
 
 - A maximum of **three RuuviTags** are displayed.
-- The display layout is currently designed specifically for the 960 × 758 LilyGO T5 4.7" panel.
+- The display layout is currently designed specifically for the 960 × 540 LilyGO T5 4.7" panel.
 - The firmware expects the backend API to provide the required RuuviTag fields.
 - There is currently no direct Bluetooth communication with RuuviTags.
 - The device depends on a network connection and an available backend API.
