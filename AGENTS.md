@@ -220,6 +220,20 @@ A test should verify a defined input, state, or condition and an expected result
 
 Use the existing project's test infrastructure rather than inventing a separate test mechanism unless there is a clear reason.
 
+### Native test shared source
+
+Native tests may test production source files from `src/`.
+
+PlatformIO does not include `src/` source files in a test build by default.
+
+When a native test needs to use an existing production implementation from `src/`, do not copy the production `.cpp` file into `test/`.
+
+Instead, configure the native test environment appropriately, using PlatformIO's `test_build_src = yes` when suitable.
+
+The test must use the actual production source file so that the test verifies the same implementation used by the firmware.
+
+Do not create duplicate copies or test-only implementations of production source files merely to resolve linker errors.
+
 ---
 
 ## 8. PlatformIO
