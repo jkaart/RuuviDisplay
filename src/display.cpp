@@ -24,37 +24,11 @@
 static EpdiyHighlevelState g_hl;
 static uint8_t *g_fb = nullptr;
 
-// Three fixed panels on a landscape 960x758 screen. Each panel shows one tag:
-// its icon column (left) and the numeric value + unit text beside it.
-static const int PANEL_CX[3] = {160, 480, 800};
-
-// Icons sit in the left portion of each panel. The numeric value + unit text is
-// right-aligned to each panel's right edge, so measurements occupy the right side
-// while icons stay on the left. Timestamp line sits near the bottom-left.
-// Layout derives from each panel's geometry (col_left = cx - HW) so all three
-// tags share an identical structure and content stays inside its own panel.
-static const int ICON_WIDTH = 60; // icons are 60x60 pixels
-static const int ICON_HEIGHT = ICON_WIDTH;
-
-static const int HW = 160;        // half panel width -> panels are exactly 320 wide, tiling [0,320]/[320,640]/[640,960] across the full 960px screen
-static const int ICON_MARGIN = 5; // icon's margin from the panel edge (both sides)
-static const int GAP = 5;         // gap between icon and value+unit text (= icon's right margin)
-
-static const int TS_Y = 448;     // timestamp line, relative to top of screen
-static const int SCREEN_W = 960; // landscape framebuffer width (ED047TC1)
-static const int SCREEN_H = 540; // landscape framebuffer height
-
-static const int ERROR_BAND_Y_GAP = 4;                  // error line small gap
-static const int ERROR_BAND_Y = 530 - ERROR_BAND_Y_GAP; // status/error line sits near the bottom edge, above a small margin
-static const int LAST_UPDATED_GAP = 18;                 // gap between the "Last updated" row and the error line
-static const int LAST_UPDATED_Y = ERROR_BAND_Y - LAST_UPDATED_GAP; // "Last updated" row sits directly above the error line
-
-// Number of tag panels shown on the display (must match PANEL_CX size).
-#define PANEL_COUNT 3
+#include "display_layout.h" // panel/icon/gap/position layout constants (see include/)
 
 static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
 {
-  int icon_x = (cx - HW) + ICON_MARGIN;
+  int icon_x = (cx - display_layout::PANEL_HALF_WIDTH) + display_layout::ICON_MARGIN_X;
   int unit_y[4] = {150, 218, 286, 354};
 
   char buf[16];
@@ -81,8 +55,8 @@ static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
     EpdRect icon_rect = {
         .x = icon_x,
         .y = unit_y[i],
-        .width = ICON_WIDTH,
-        .height = ICON_HEIGHT,
+        .width = display_layout::ICON_WIDTH,
+        .height = display_layout::ICON_HEIGHT,
     };
     epd_copy_to_framebuffer(icon_rect, icon_data, fb);
 
@@ -110,7 +84,7 @@ static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
     EpdFontProperties font_props = epd_font_properties_default();
     font_props.flags = EPD_DRAW_ALIGN_RIGHT; // value+unit right-aligned to the panel's right edge (icons stay left)
 
-    int text_x = cx + HW - GAP; // right edge of this panel - small gap -> text ends here, icons remain on the left
+    int text_x = cx + display_layout::PANEL_HALF_WIDTH - display_layout::GAP_ICON_TEXT; // right edge of this panel - small gap -> text ends here, icons remain on the left
     int text_y = unit_y[i] + 40;
     epd_write_string(&OpenSans16B, buf, &text_x, &text_y, fb, &font_props);
   }
@@ -118,12 +92,12 @@ static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
 
 void display_update(const RuuviMeasurement *tags, uint8_t count)
 {
-  const int panels = (count < PANEL_COUNT) ? count : PANEL_COUNT;
+  const int panels = (count < display_layout::PANEL_COUNT) ? count : display_layout::PANEL_COUNT;
 
   for (int i = 0; i < panels; ++i)
   {
     const RuuviMeasurement &m = tags[i];
-    int cx = PANEL_CX[i];
+    int cx = display_layout::PANEL_CX[i];
 
     // Tag names
 
@@ -144,17 +118,17 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
 
     EpdFontProperties ts_props = epd_font_properties_default();
-    int ts_x = (cx - HW) + ICON_MARGIN; // timestamp sits at the icon column
-    int ts_y = TS_Y;
+    int ts_x = (cx - display_layout::PANEL_HALF_WIDTH) + display_layout::ICON_MARGIN_X; // timestamp sits at the icon column
+    int ts_y = display_layout::TS_Y_OFFSET;
     epd_write_string(&OpenSans12B, time_buf, &ts_x, &ts_y, g_fb, &ts_props);
   }
 
   // Erase the status band so any error line from a previous failed cycle is gone.
-  // The band spans from LAST_UPDATED_Y (the "Last updated" row) to the bottom edge,
+  // The band spans from LAST_UPDATED_ROW_Y (the "Last updated" row) to the bottom edge,
   // so both the row and the error line are cleared; the retained tag data drawn above
   // stays intact. Without this e-paper's persistent pixels would keep showing an old
   // error message on every subsequent successful render.
-  epd_fill_rect(EpdRect{.x = 0, .y = LAST_UPDATED_Y, .width = SCREEN_W, .height = SCREEN_H - LAST_UPDATED_Y}, 0xFF, g_fb);
+  epd_fill_rect(EpdRect{.x = 0, .y = display_layout::LAST_UPDATED_ROW_Y, .width = display_layout::DISPLAY_WIDTH, .height = display_layout::DISPLAY_HEIGHT - display_layout::LAST_UPDATED_ROW_Y}, 0xFF, g_fb);
 
   // Draw the "Last updated" row (g_renderEpoch, set by main before this call).
   draw_last_updated_row(g_fb);
@@ -171,7 +145,7 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
 // Draw the "Last updated" row just above the status/error band. Shows g_renderEpoch
 // (set by main.cpp before each render) converted to local time. If no time is
 // available yet (g_renderEpoch == 0) it draws "--". Only the row is added into the
-// already-erased band; tag data above LAST_UPDATED_Y is never touched.
+// already-erased band; tag data above LAST_UPDATED_ROW_Y is never touched.
 void draw_last_updated_row(uint8_t *fb)
 {
   char buf[32];
@@ -191,7 +165,7 @@ void draw_last_updated_row(uint8_t *fb)
   EpdFontProperties props = epd_font_properties_default();
   props.flags = EPD_DRAW_ALIGN_LEFT; // flush to the left edge, aligned with the error line
   int x = 2;                         // small margin so glyphs are not clipped at x=0
-  int y = LAST_UPDATED_Y;
+  int y = display_layout::LAST_UPDATED_ROW_Y;
 
   epd_write_string(&OpenSans12B, buf, &x, &y, fb, &props);
 }
@@ -216,7 +190,7 @@ void display_show_error(const char *message)
 
   // Clear the status band (row + error area) so a stale error line from a previous
   // failed cycle is removed before we redraw.
-  epd_fill_rect(EpdRect{.x = 0, .y = LAST_UPDATED_Y, .width = SCREEN_W, .height = SCREEN_H - LAST_UPDATED_Y}, 0xFF, g_fb);
+  epd_fill_rect(EpdRect{.x = 0, .y = display_layout::LAST_UPDATED_ROW_Y, .width = display_layout::DISPLAY_WIDTH, .height = display_layout::DISPLAY_HEIGHT - display_layout::LAST_UPDATED_ROW_Y}, 0xFF, g_fb);
 
   // "Last updated" row (retains the last successful update time from g_renderEpoch).
   draw_last_updated_row(g_fb);
@@ -225,7 +199,7 @@ void display_show_error(const char *message)
   EpdFontProperties props = epd_font_properties_default();
   props.flags = EPD_DRAW_ALIGN_LEFT; // flush to the left edge of the screen
   int x = 2;                         // small margin so glyphs are not clipped at x=0
-  int y = ERROR_BAND_Y;
+  int y = display_layout::ERROR_BAND_Y;
 
   epd_write_string(&OpenSans12B, msg, &x, &y, g_fb, &props);
 

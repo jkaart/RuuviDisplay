@@ -1,5 +1,7 @@
 # Task ID: TASK-005
 
+status: completed
+
 ## Title: Centralize display layout constants into a dedicated configuration header
 
 ### Summary
@@ -59,3 +61,43 @@ constexpr int16_t LAST_UPDATED_ROW_Y     = ERROR_BAND_Y - LAST_UPDATED_GAP;     
 - Build succeeds without modification.
 - Visual output is identical (no regression).
 - A simple change to, e.g., `LAST_UPDATED_GAP` can be made in one file and the effect is immediately visible across all uses.
+
+## Resolution
+
+### What was changed
+- **New file `include/display_layout.h`**: consolidated all layout constants into a
+  `display_layout` namespace (screen/panel geometry, icon size, margins/gaps, timestamp
+  Y and the derived status-band/"Last updated" row Y positions).
+- **`src/display.cpp`**: removed the 13 scattered `static const`/`#define` definitions and
+  replaced every usage with a `display_layout::` reference.
+
+### Deviations from the proposed header (necessary to satisfy "no visual regression")
+The task's proposed header contained three bugs that would have changed the rendered
+pixels. Per AGENTS.md ("Do not blindly trust the task description") and the hard
+acceptance criterion "Visual output is identical (no regression)", each was corrected:
+
+1. `PANEL_HALF_WIDTH` — proposed `DISPLAY_WIDTH / 2` (= 480) would have pushed icons off
+   screen and text into the next panel. Original `HW` was 160 (320-wide panels). Kept at
+   **160**.
+2. `ERROR_BAND_Y` — proposed `DISPLAY_HEIGHT - 4` (= 536) moved the error line down by 10.
+   Original was `530 - 4` = 526. Kept at **526** (this also keeps `LAST_UPDATED_ROW_Y` at
+   508).
+3. Types — proposed `uint8_t` for `DISPLAY_WIDTH` (960), `DISPLAY_HEIGHT` (540) and
+   `TS_Y_OFFSET` (448) would truncate values above 255 (e.g. 960->192, 448->192), moving
+   every coordinate. Changed those three to **`int16_t`**.
+
+All other constant names/values/types from the proposal were kept as-is.
+
+### Tests / verification
+- Firmware environment `lilygo-t5-47` builds cleanly (no errors/warnings), both incrementally
+  and from a clean build.
+- Standalone C++ check including the header asserts all 16 constants and 4 derived
+  positions (icon_x, text_x, fill width/height) equal the original values — 20/20 pass.
+- `pio test` (native `test` env) unchanged: it has no suites (pre-existing), unrelated to this change.
+
+### Acceptance criteria
+- [x] All magic numbers in `src/display.cpp` replaced with `display_layout::` references.
+- [x] Build succeeds without modification.
+- [x] Visual output is identical (no regression) — all original pixel positions preserved.
+- [x] `LAST_UPDATED_GAP` is a single header constant; changing it immediately affects both
+      the status-band erase height and the "Last updated" row position.
