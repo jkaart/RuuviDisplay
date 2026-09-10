@@ -1,4 +1,5 @@
 #include "display.h"
+#include <Arduino.h>
 
 #include "timezone.h" // UTC epoch -> Europe/Helsinki local time (DST-aware)
 
@@ -44,6 +45,8 @@ static const int SCREEN_H = 540; // landscape framebuffer height
 
 static const int ERROR_BAND_Y_GAP = 4;                  // error line small gap
 static const int ERROR_BAND_Y = 530 - ERROR_BAND_Y_GAP; // status/error line sits near the bottom edge, above a small margin
+static const int LAST_UPDATED_GAP = 18;                 // gap between the "Last updated" row and the error line
+static const int LAST_UPDATED_Y = ERROR_BAND_Y - LAST_UPDATED_GAP; // "Last updated" row sits directly above the error line
 
 // Number of tag panels shown on the display (must match PANEL_CX size).
 #define PANEL_COUNT 3
@@ -145,11 +148,15 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
     epd_write_string(&OpenSans12B, time_buf, &ts_x, &ts_y, g_fb, &ts_props);
   }
 
-  // Erase the bottom band so any error line from a previous failed cycle is gone.
-  // Tags are drawn above ERROR_BAND_Y, so this only clears where the status line lives;
-  // it does not touch the retained tag data. Without it e-paper's persistent pixels would
-  // keep showing an old error message on every subsequent successful render.
-  epd_fill_rect(EpdRect{.x = 0, .y = ERROR_BAND_Y, .width = SCREEN_W, .height = SCREEN_H - ERROR_BAND_Y}, 0xFF, g_fb);
+  // Erase the status band so any error line from a previous failed cycle is gone.
+  // The band spans from LAST_UPDATED_Y (the "Last updated" row) to the bottom edge,
+  // so both the row and the error line are cleared; the retained tag data drawn above
+  // stays intact. Without this e-paper's persistent pixels would keep showing an old
+  // error message on every subsequent successful render.
+  epd_fill_rect(EpdRect{.x = 0, .y = LAST_UPDATED_Y, .width = SCREEN_W, .height = SCREEN_H - LAST_UPDATED_Y}, 0xFF, g_fb);
+
+  // Draw the "Last updated" row (g_renderEpoch, set by main before this call).
+  draw_last_updated_row(g_fb);
 
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
@@ -160,10 +167,40 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
   epd_deinit();
 }
 
+// Draw the "Last updated" row just above the status/error band. Shows g_renderEpoch
+// (set by main.cpp before each render) converted to Europe/Helsinki local time. If no
+// time is available yet (g_renderEpoch == 0) it draws "--". Only the row is added into
+// the already-erased band; tag data above LAST_UPDATED_Y is never touched.
+void draw_last_updated_row(uint8_t *fb)
+{
+  char buf[32];
+  if (g_renderEpoch == 0)
+  {
+    snprintf(buf, sizeof(buf), "--");
+  }
+  else
+  {
+    struct tm tmv;
+    char time_buf[20];
+    utcToLocal("Europe/Helsinki", g_renderEpoch, &tmv); // UTC epoch -> Helsinki local (DST-aware)
+    strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
+    snprintf(buf, sizeof(buf), "Last updated: %s", time_buf);
+  }
+
+  EpdFontProperties props = epd_font_properties_default();
+  props.flags = EPD_DRAW_ALIGN_LEFT; // flush to the left edge, aligned with the error line
+  int x = 2;                         // small margin so glyphs are not clipped at x=0
+  int y = LAST_UPDATED_Y;
+
+  epd_write_string(&OpenSans12B, buf, &x, &y, fb, &props);
+}
+
 // Draw an error/status message at the bottom-left of the panel and drive it. The tag
 // data rendered by display_update() is preserved (e-paper retains its pixels), so a
-// failed fetch shows the latest tags plus this line. Only the status text is added; no
-// existing content is erased here.
+// failed fetch shows the latest tags plus this line. The status band is cleared first
+// (row + error area) so a stale error line is removed; the "Last updated" row is redrawn
+// from g_renderEpoch (last successful update). Only the status text is added; no other
+// content is erased here.
 void display_show_error(const char *message)
 {
   char msg[65] = {0};
@@ -176,10 +213,18 @@ void display_show_error(const char *message)
     snprintf(msg, sizeof(msg), "--");
   }
 
+  // Clear the status band (row + error area) so a stale error line from a previous
+  // failed cycle is removed before we redraw.
+  epd_fill_rect(EpdRect{.x = 0, .y = LAST_UPDATED_Y, .width = SCREEN_W, .height = SCREEN_H - LAST_UPDATED_Y}, 0xFF, g_fb);
+
+  // "Last updated" row (retains the last successful update time from g_renderEpoch).
+  draw_last_updated_row(g_fb);
+
+  // Error line below the row.
   EpdFontProperties props = epd_font_properties_default();
   props.flags = EPD_DRAW_ALIGN_LEFT; // flush to the left edge of the screen
   int x = 2;                         // small margin so glyphs are not clipped at x=0
-  int y = ERROR_BAND_Y;              // vertically centered in the bottom band
+  int y = ERROR_BAND_Y;
 
   epd_write_string(&OpenSans12B, msg, &x, &y, g_fb, &props);
 

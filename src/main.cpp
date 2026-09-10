@@ -9,6 +9,11 @@
 #include <HTTPClient.h>
 #include <NetworkClientSecure.h>
 
+// NTP client for the "Last updated" row. Built into ESP32 core; uses the secure
+// client (setInsecure() for UDP NTP) so it matches the /health and /api requests.
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
 // Deep-sleep hold durations (microseconds for esp_sleep_enable_timer_wakeup).
 static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;  // endpoint unreachable -> short retry hold
 static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle between renders
@@ -17,6 +22,9 @@ static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle bet
 
 // Forward declaration: defined after setup()/loop() but used in setup().
 static void shortDeepSleep(uint32_t us);
+
+// Forward declaration: syncs NTP and stores the epoch shown in the "Last updated" row.
+static void syncNtp();
 
 // Parse + print RuuviTag measurements from the backend /api JSON array.
 #include "RuuviMeasurement.h"
@@ -42,6 +50,10 @@ Preferences prefs;
 // Human-readable health-check failure reason, set by endpointHealthCheck() and shown
 // at the bottom-left of the panel on the FAIL path (same wording as the Serial log).
 static char g_healthError[80];
+
+// NTP epoch (seconds since 1970) captured before each render; shown in the "Last
+// updated" row by display.cpp. Declared extern in display.h. 0 = no time available yet.
+time_t g_renderEpoch = 0;
 
 // Read the endpoint URL / API key from Preferences into g_config. Called once
 // after a successful WiFi connection so the app always has current values.
@@ -360,6 +372,9 @@ void setup()
   // app has them available immediately after connecting.
   loadCustomConfig();
 
+  // Sync NTP so the "Last updated" row shows a correct time.
+  syncNtp();
+
   // Verify connectivity to the configured endpoint once (HTTPS GET /health).
   bool healthOk = endpointHealthCheck();
 
@@ -389,8 +404,31 @@ static void shortDeepSleep(uint32_t us)
   esp_deep_sleep_start(); // deep sleep auto-reboots into a fresh boot -> setup re-runs
 }
 
+// Sync NTP and store the epoch to show in the "Last updated" row. Best-effort: on
+// failure getEpochTime() returns 0 and g_renderEpoch is left unchanged, so the
+// display keeps showing the previous time. begin() runs once per boot; update() is
+// rate-limited by the NTPClient interval and self-retries on the next boot.
+static void syncNtp()
+{
+  static bool ntpStarted = false;
+  static WiFiUDP ntpUdp;
+  static NTPClient ntpClient(ntpUdp, "pool.ntp.org", 0, 3600000);
+  if (!ntpStarted)
+  {
+    ntpClient.begin();
+    ntpStarted = true;
+  }
+  ntpClient.update();
+  time_t newEpoch = ntpClient.getEpochTime();
+  if (newEpoch != 0)
+    g_renderEpoch = newEpoch;
+}
+
 void loop()
 {
+  // Sync NTP so the "Last updated" row stays accurate across the idle cycle.
+  syncNtp();
+
   ruuviFetchAndPrint(); // fetch /api and render the panel with fresh data
 
   // Idle cycle: put the modem to light-sleep, hold the rendered panel for
