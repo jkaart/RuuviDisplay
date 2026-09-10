@@ -34,3 +34,39 @@ If both headers might be needed depending on platform, guard so `<time.h>` is on
 - Build succeeds with `pio run -e lilygo-t5-47`.
 - No compilation warnings or errors related to `<time.h>`/`<ctime>`.
 - Runtime behavior is unchanged (same output for the "Last updated" row).
+
+## Resolution
+
+**Approach:** Implemented **Option A** (recommended in the task). Replaced
+`#include <time.h>` with `#include <ctime>` in `include/display.h`. This is a
+zero-risk, behavior-preserving swap: the Arduino-ESP32 core (ESP-IDF) exposes
+`time_t`, `gmtime_r()`, and `localtime_r()` through the C++ `<ctime>` header,
+and these same functions/typedefs are what the rest of the code uses.
+
+**Change made:**
+- `include/display.h`: line 4 — `#include <time.h>` → `#include <ctime>`.
+
+**Files checked (no change needed):**
+- `src/timezone.cpp` — includes `<Timezone.h>` (jchristensen/Timezone lib) and
+  uses `gmtime_r()`; unaffected by the header swap and compiles cleanly.
+- `include/timezone.h`, `src/display.cpp`, `src/RuviMeasurement.cpp` — these use
+  pre-existing `#include <time.h>` and were already compiling on the ESP32
+  Arduino core; they are outside the scope of this task and were left untouched.
+
+**Tests / verification run:**
+- `pio run -e lilygo-t5-47` (full ESP32/Arduino build) — **SUCCESS**, after a
+  clean build (`-t clean`) so the `<ctime>` change in the header was recompiled
+  from scratch. No errors or warnings related to `<time.h>`/`<ctime>`.
+- Native host sanity check: `g++ -std=c++17` confirms `<ctime>` provides
+  `time_t` + `gmtime_r` (the reverse direction).
+- The `test` (native) environment could not be run because its referenced test
+  sources are absent from the repo (pre-existing; not caused by this change and
+  intentionally left alone).
+
+**Acceptance criteria:**
+- [x] Build succeeds with `pio run -e lilygo-t5-47`.
+- [x] No compilation warnings or errors related to `<time.h>`/`<ctime>`.
+- [x] Runtime behavior is unchanged (pure include swap; `<ctime>` exposes the
+      same `time_t`/`gmtime_r`/`localtime_r` semantics on ESP32).
+
+**Status:** completed.

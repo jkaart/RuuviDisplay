@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <time.h>   // time_t: NTP epoch captured at render time, shown in "Last updated"
+#include <ctime>   // time_t: NTP epoch captured at render time, shown in "Last updated"
 
 #include "RuuviMeasurement.h"
 
