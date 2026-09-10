@@ -40,3 +40,15 @@ bool utcToLocal(const char* zoneName, time_t utcEpochSeconds, struct tm* outTm);
 // Public so callers (and unit tests) can validate the table without building
 // the Arduino Timezone dependency.
 const ZoneEntry* tzLookup(const char* zoneName);
+
+// Return the effective IANA zone name for a configured value: the configured name
+// if it is recognized by the built-in table, otherwise the supplied default. Returns
+// a pointer to a valid, null-terminated C-string (either the validated input or the
+// default) that remains valid until the next call. Inline + Arduino-free so it can
+// be unit-tested on any host compiler.
+inline const char* tzEffectiveZone(const char* configured, const char* defaultZone)
+{
+  if (configured && configured[0] && tzLookup(configured))
+    return configured;
+  return defaultZone;
+}

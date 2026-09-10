@@ -14,6 +14,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
+#include "timezone.h" // tzEffectiveZone() validation and utcToLocal()
+
 // Deep-sleep hold durations (microseconds for esp_sleep_enable_timer_wakeup).
 static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;  // endpoint unreachable -> short retry hold
 static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle between renders
@@ -35,13 +37,15 @@ static void syncNtp();
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
 void saveConfigCallback(); // WiFi credentials changed -> reboot + persist custom config
-void saveParamsCallback(); // custom params (endpoint/api key) saved -> persist, no reboot
+void saveTimezoneCallback(); // custom params (endpoint/api/timezone) saved -> persist, no reboot
 
 static bool g_shouldReboot = false;
 
 // -- Captive portal custom fields (must outlive the portal session) ----------
 WiFiManagerParameter backendParam("backend_url", "Backend URL", "", 64);
 WiFiManagerParameter apiKeyParam("api_key", "API key", "", 64);
+WiFiManagerParameter timezoneParam(WIFI_MANAGER_PARAM_TIMEZONE, WIFI_MANAGER_PARAM_TIMEZONE_LABEL,
+                                   WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT, 32);
 
 // -- Persistent storage for endpoint URL and API key -------------------------
 AppConfig g_config;
@@ -55,6 +59,10 @@ static char g_healthError[80];
 // updated" row by display.cpp. Declared extern in display.h. 0 = no time available yet.
 time_t g_renderEpoch = 0;
 
+// Effective timezone name (declared extern in wifi_config.h). Initialized to the
+// built-in default so the very first render is correct even before loadCustomConfig().
+char g_timezone[33] = WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT;
+
 // Read the endpoint URL / API key from Preferences into g_config. Called once
 // after a successful WiFi connection so the app always has current values.
 void loadCustomConfig();
@@ -65,6 +73,7 @@ void persistCustomConfig()
 {
   String backendUrl = backendParam.getValue();
   String apiKey = apiKeyParam.getValue();
+  String timezone = timezoneParam.getValue();
 
   prefs.begin(PREFERENCES_NAME, false);
   if (!backendUrl.isEmpty())
@@ -82,6 +91,14 @@ void persistCustomConfig()
   else
   {
     prefs.remove("api_key");
+  }
+  if (!timezone.isEmpty())
+  {
+    prefs.putString("timezone", timezone);
+  }
+  else
+  {
+    prefs.remove("timezone");
   }
   prefs.end();
 
@@ -101,8 +118,11 @@ void saveConfigCallback()
   persistCustomConfig();
 }
 
-void saveParamsCallback()
+void saveTimezoneCallback()
 {
+  // All captive-portal custom fields (endpoint URL, API key, timezone) were saved.
+  // Persist them together (single Preferences session) and reload the effective
+  // config so the new values — including the timezone — take effect immediately.
   persistCustomConfig();
 }
 
@@ -114,11 +134,14 @@ void loadCustomConfig()
   }
   String backendUrl = prefs.getString("backend_url", "");
   String apiKey = prefs.getString("api_key", "");
+  String timezone = prefs.getString("timezone", WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT);
   prefs.end();
 
   // Populate g_config (truncate to the fixed buffer sizes).
   backendUrl.toCharArray(g_config.backendUrl, sizeof(g_config.backendUrl));
   apiKey.toCharArray(g_config.apiKey, sizeof(g_config.apiKey));
+  // Store the effective timezone name (validated at use time in display.cpp).
+  timezone.toCharArray(g_timezone, sizeof(g_timezone));
 }
 
 // Normalize the configured backend base URL to HTTPS and append a path suffix
@@ -340,7 +363,7 @@ void setup()
 
   wifiManager.setAPCallback(&configModeCallback);
   wifiManager.setSaveConfigCallback(&saveConfigCallback);
-  wifiManager.setSaveParamsCallback(&saveParamsCallback);
+  wifiManager.setSaveParamsCallback(&saveTimezoneCallback);
 
   wifiManager.addParameter(&backendParam);
   wifiManager.addParameter(&apiKeyParam);
@@ -404,22 +427,40 @@ static void shortDeepSleep(uint32_t us)
   esp_deep_sleep_start(); // deep sleep auto-reboots into a fresh boot -> setup re-runs
 }
 
+// Lazily build and return the NTP client used for the "Last updated" row. The epoch
+// offset is intentionally 0: the client converts the NTP 1900 epoch to the Unix 1970
+// epoch internally (SEVENZYYEARS), so it is timezone-independent. tz is read here to
+// keep the NTP sync path aware of the effective timezone — display.cpp applies the
+// same value via utcToLocal() when rendering. Referenced under DEBUG only, so normal
+// runtime output is unchanged.
+static NTPClient& ntpClient(const char* tz)
+{
+  static WiFiUDP ntpUdp;
+  static NTPClient instance(ntpUdp, "pool.ntp.org", 0, 3600000);
+  static bool started = false;
+  if (!started)
+  {
+    instance.begin();
+    #ifdef DEBUG
+    Serial.printf("[ntp] epoch synced, timezone=%s\n", tz);
+    #endif
+    started = true;
+  }
+  return instance;
+}
+
 // Sync NTP and store the epoch to show in the "Last updated" row. Best-effort: on
 // failure getEpochTime() returns 0 and g_renderEpoch is left unchanged, so the
 // display keeps showing the previous time. begin() runs once per boot; update() is
 // rate-limited by the NTPClient interval and self-retries on the next boot.
 static void syncNtp()
 {
-  static bool ntpStarted = false;
-  static WiFiUDP ntpUdp;
-  static NTPClient ntpClient(ntpUdp, "pool.ntp.org", 0, 3600000);
-  if (!ntpStarted)
-  {
-    ntpClient.begin();
-    ntpStarted = true;
-  }
-  ntpClient.update();
-  time_t newEpoch = ntpClient.getEpochTime();
+  // Effective timezone (validated; falls back to default). The same value display.cpp
+  // applies via utcToLocal(), so NTP sync and rendering stay in lockstep.
+  const char* tz = tzEffectiveZone(g_timezone, WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT);
+  NTPClient& ntp = ntpClient(tz);
+  ntp.update();
+  time_t newEpoch = ntp.getEpochTime();
   if (newEpoch != 0)
     g_renderEpoch = newEpoch;
 }

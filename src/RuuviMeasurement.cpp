@@ -1,6 +1,7 @@
 #include "RuuviMeasurement.h"
 
-#include "timezone.h" // UTC epoch -> Europe/Helsinki local time (DST-aware)
+#include "timezone.h" // UTC epoch -> local time (DST-aware)
+#include "wifi_config.h" // g_timezone + WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT
 
 #include <ArduinoJson.h>
 #include <time.h>
@@ -91,7 +92,7 @@ uint8_t RuuviMeasurements::printAll()
 
     struct tm tm;
     time_t ts_time = m.timestamp;                // unsigned long -> time_t (long long on ESP32)
-    utcToLocal("Europe/Helsinki", ts_time, &tm); // UTC epoch -> Helsinki local (DST-aware)
+    utcToLocal(tzEffectiveZone(g_timezone, WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT), ts_time, &tm); // UTC epoch -> local (DST-aware)
     char ts[17];
     strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", &tm);
     Serial.print(ts);

@@ -26,3 +26,16 @@ struct AppConfig {
 };
 
 extern AppConfig g_config;
+
+// Captive-portal field id + UI label for the configurable timezone, and the value
+// shown when the field is first presented. Default zone is Europe/Helsinki (the
+// historical firmware default) so an unset/cleared/invalid value is safe.
+#define WIFI_MANAGER_PARAM_TIMEZONE "timezone"
+#define WIFI_MANAGER_PARAM_TIMEZONE_LABEL "Timezone (e.g., Europe/Helsinki)"
+#define WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT "Europe/Helsinki"
+
+// Effective IANA timezone name used for all UTC->local conversions on this device.
+// Set by main.cpp from the captive-portal parameter and persisted in NVRAM; holds
+// the raw configured value (validated at use time via tzEffectiveZone()). Read by
+// display.cpp and syncNtp() (main.cpp). Max length matches the portal field length.
+extern char g_timezone[33];

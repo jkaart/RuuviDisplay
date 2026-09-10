@@ -1,7 +1,8 @@
 #include "display.h"
 #include <Arduino.h>
 
-#include "timezone.h" // UTC epoch -> Europe/Helsinki local time (DST-aware)
+#include "timezone.h" // UTC epoch -> local time (DST-aware)
+#include "wifi_config.h" // WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT (fallback zone)
 
 #include <epd_highlevel.h> // transitively includes epidy.h (EpdRect, EpdFontProperties, EPD_DRAW_ALIGN_*, epd_fill_rect, ...)
 
@@ -139,7 +140,7 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
     char time_buf[18];
     struct tm tmv;
     time_t ts = (time_t)m.timestamp;
-    utcToLocal("Europe/Helsinki", ts, &tmv); // UTC epoch -> Helsinki local (DST-aware)
+    utcToLocal(tzEffectiveZone(g_timezone, WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT), ts, &tmv); // UTC epoch -> local (DST-aware)
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
 
     EpdFontProperties ts_props = epd_font_properties_default();
@@ -168,9 +169,9 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
 }
 
 // Draw the "Last updated" row just above the status/error band. Shows g_renderEpoch
-// (set by main.cpp before each render) converted to Europe/Helsinki local time. If no
-// time is available yet (g_renderEpoch == 0) it draws "--". Only the row is added into
-// the already-erased band; tag data above LAST_UPDATED_Y is never touched.
+// (set by main.cpp before each render) converted to local time. If no time is
+// available yet (g_renderEpoch == 0) it draws "--". Only the row is added into the
+// already-erased band; tag data above LAST_UPDATED_Y is never touched.
 void draw_last_updated_row(uint8_t *fb)
 {
   char buf[32];
@@ -182,7 +183,7 @@ void draw_last_updated_row(uint8_t *fb)
   {
     struct tm tmv;
     char time_buf[20];
-    utcToLocal("Europe/Helsinki", g_renderEpoch, &tmv); // UTC epoch -> Helsinki local (DST-aware)
+    utcToLocal(tzEffectiveZone(g_timezone, WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT), g_renderEpoch, &tmv); // UTC epoch -> local (DST-aware)
     strftime(time_buf, sizeof(time_buf), "%d/%m/%y %H:%M:%S", &tmv);
     snprintf(buf, sizeof(buf), "Last updated: %s", time_buf);
   }

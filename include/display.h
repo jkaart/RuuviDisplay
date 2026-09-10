@@ -31,5 +31,5 @@ void display_update(const RuuviMeasurement* tags, uint8_t count);
 // in the "Last updated" row.
 void display_show_error(const char* message);
 
-// Draw the bottom "Last updated" row (OK path): date + Helsinki time + "Last updated".
+// Draw the bottom "Last updated" row (OK path): date + local time + "Last updated".
 void draw_last_updated_row(uint8_t *fb);
