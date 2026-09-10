@@ -60,6 +60,12 @@ first investigate and state the recommended approach before implementing it.
 
 For simple, local, low-risk fixes, this does not require a separate planning step.
 
+### Do not restore deleted files without explicit instruction
+
+A file deleted by the user is an intentional change unless the user explicitly states otherwise.
+
+Do not restore deleted files from Git history, previous commits, `old/`, or other locations merely because the file appears to be missing or was previously used by the project.
+
 ---
 
 ## 3. Project Architecture
@@ -192,6 +198,16 @@ If a genuine external blocker prevents completion, clearly report:
 ---
 
 ## 7. Testing
+
+### Tests must not be resurrected
+
+Tests are not mandatory project files.
+
+If a test file is removed by the user, do not restore, recreate, copy, or retrieve that test from Git history unless the user explicitly asks for it to be restored.
+
+Do not treat deleted tests as missing functionality.
+
+Only create new tests when the task explicitly requires adding a test or when the user explicitly asks for testing to be added.
 
 Tests belong in:
 

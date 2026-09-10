@@ -1,7 +1,5 @@
 # Task ID: TASK-002
 
-status: in-progress
-
 ## Title: Make timezone configurable via WiFiManager parameters (runtime reconfiguration)
 
 ### Summary
