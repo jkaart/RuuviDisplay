@@ -4,7 +4,7 @@
 #include "wifi_config.h" // g_timezone + WIFI_MANAGER_PARAM_TIMEZONE_DEFAULT
 
 #include <ArduinoJson.h>
-#include <time.h>
+#include <ctime>
 
 bool RuuviMeasurements::parse(const char *json, size_t len)
 {

@@ -16,7 +16,7 @@
 #include "opensans12b.h"
 
 #include <stdio.h>
-#include <time.h>
+#include <ctime>
 
 // --- E-paper driver state (landscape, ED047TC1) -----------------------------
 #define WAVEFORM EPD_BUILTIN_WAVEFORM

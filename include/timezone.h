@@ -1,6 +1,6 @@
 #pragma once
 
-#include <time.h>   // time_t, struct tm
+#include <ctime>    // time_t, struct tm
 #include <cstdint>  // int8_t
 
 // Plain (Arduino-independent) representation of a repeating DST rule set. The
