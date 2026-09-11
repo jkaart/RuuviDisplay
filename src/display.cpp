@@ -26,6 +26,10 @@ static uint8_t *g_fb = nullptr;
 
 #include "display_layout.h" // panel/icon/gap/position layout constants (see include/)
 
+// Forward declaration: defined after display_update()/display_show_error() but called
+// from both, so the status band always shows the local 18650 cell voltage (ADC pin 36).
+static void draw_battery_voltage_row(uint8_t *fb);
+
 static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
 {
   int icon_x = (cx - display_layout::PANEL_HALF_WIDTH) + display_layout::ICON_MARGIN_X;
@@ -133,6 +137,9 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
   // Draw the "Last updated" row (g_renderEpoch, set by main before this call).
   draw_last_updated_row(g_fb);
 
+  // Local 18650 cell voltage (ADC pin 36), right of the "Last updated" row.
+  draw_battery_voltage_row(g_fb);
+
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
   // physical panel never updates (tags never render).
@@ -170,6 +177,30 @@ void draw_last_updated_row(uint8_t *fb)
   epd_write_string(&OpenSans12B, buf, &x, &y, fb, &props);
 }
 
+// Draw the local display-board 18650 cell voltage (ADC pin 36) at the bottom-right of
+// the panel, on the same row as the left-aligned "Last updated" text. Distinct from
+// the RuuviTag battery voltages drawn in the panels above; right-aligned to use the
+// full width. Draws only into the already-erased status band.
+static void draw_battery_voltage_row(uint8_t *fb)
+{
+  char buf[16];
+  if (g_localBatteryVolts <= 0.0)
+  {
+    snprintf(buf, sizeof(buf), "--");
+  }
+  else
+  {
+    snprintf(buf, sizeof(buf), "%.2f V", g_localBatteryVolts);
+  }
+
+  EpdFontProperties props = epd_font_properties_default();
+  props.flags = EPD_DRAW_ALIGN_RIGHT; // flush to the right edge, opposite the left-aligned "Last updated" row
+  int x = display_layout::DISPLAY_WIDTH - 2;
+  int y = display_layout::LAST_UPDATED_ROW_Y;
+
+  epd_write_string(&OpenSans12B, buf, &x, &y, fb, &props);
+}
+
 // Draw an error/status message at the bottom-left of the panel and drive it. The tag
 // data rendered by display_update() is preserved (e-paper retains its pixels), so a
 // failed fetch shows the latest tags plus this line. The status band is cleared first
@@ -194,6 +225,9 @@ void display_show_error(const char *message)
 
   // "Last updated" row (retains the last successful update time from g_renderEpoch).
   draw_last_updated_row(g_fb);
+
+  // Local 18650 cell voltage (ADC pin 36), right of the "Last updated" row.
+  draw_battery_voltage_row(g_fb);
 
   // Error line below the row.
   EpdFontProperties props = epd_font_properties_default();

@@ -9,6 +9,10 @@
 // read here to draw the "Last updated" row. Set to 0 when no time is available yet.
 extern time_t g_renderEpoch;
 
+// Local 18650 cell voltage (ADC pin 36), read by main.cpp before each render and
+// drawn at the bottom of the panel. 0 until the first successful read.
+extern double g_localBatteryVolts;
+
 // Initialize the e-paper driver, framebuffer and landscape rotation WITHOUT
 // driving the physical panel. Safe to call on every boot (including after a
 // deep-sleep reboot). Does not clear or render anything; only prepares RAM.

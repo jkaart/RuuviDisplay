@@ -20,6 +20,10 @@
 static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;  // endpoint unreachable -> short retry hold
 static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle between renders
 
+// Local display-board 18650 cell voltage: ADC->V scaling factor. T18 factory value;
+// must be calibrated against a multimeter for the T5-47 / ADC36 wiring.
+#define BATTERY_CONVERSION_FACTOR 1.79
+
 #include <esp_sleep.h>
 
 // Forward declaration: defined after setup()/loop() but used in setup().
@@ -33,6 +37,9 @@ static void syncNtp();
 
 // Render parsed measurements onto the e-paper display.
 #include "display.h"
+
+// Read the local display-board 18650 cell voltage (ADC pin 36) for the bottom row.
+#include <Battery18650Stats.h>
 
 // -- Callbacks ---------------------------------------------------------------
 void configModeCallback(WiFiManager *myWiFiManager);
@@ -58,6 +65,14 @@ static char g_healthError[80];
 // NTP epoch (seconds since 1970) captured before each render; shown in the "Last
 // updated" row by display.cpp. Declared extern in display.h. 0 = no time available yet.
 time_t g_renderEpoch = 0;
+
+// Local 18650 cell voltage (ADC pin 36), read before each render and drawn at the
+// bottom of the panel by display.cpp. 0 until the first successful read.
+double g_localBatteryVolts = 0.0;
+
+// Reads the local display-board cell voltage (ADC pin 36). 20-sample average; the
+// T18 factory scaling factor is used until recalibrated for this board's wiring.
+static Battery18650Stats g_battery(36, BATTERY_CONVERSION_FACTOR);
 
 // Effective timezone name (declared extern in wifi_config.h). Initialized to the
 // built-in default so the very first render is correct even before loadCustomConfig().
@@ -350,6 +365,10 @@ void setup()
   delay(1000); // give the serial port time to initialize before WiFiManager uses it
   Serial.println();
   Serial.println("[wifi] Starting up...");
+
+  // Read the local cell voltage once before any render so the bottom row always
+  // reflects the current value, whether this poll succeeds or fails.
+  g_localBatteryVolts = g_battery.getBatteryVolts();
 
   display_framebuffer_init();
 
