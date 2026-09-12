@@ -22,7 +22,7 @@ static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle bet
 
 // Local display-board 18650 cell voltage: ADC->V scaling factor. T18 factory value;
 // must be calibrated against a multimeter for the T5-47 / ADC36 wiring.
-#define BATTERY_CONVERSION_FACTOR 1.598
+#define BATTERY_CONVERSION_FACTOR 1.795
 
 #include <esp_sleep.h>
 
