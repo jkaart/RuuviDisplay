@@ -22,7 +22,7 @@ static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle bet
 
 // Local display-board 18650 cell voltage: ADC->V scaling factor. T18 factory value;
 // must be calibrated against a multimeter for the T5-47 / ADC36 wiring.
-#define BATTERY_CONVERSION_FACTOR 1.79
+#define BATTERY_CONVERSION_FACTOR 1.598
 
 #include <esp_sleep.h>
 
@@ -71,7 +71,7 @@ time_t g_renderEpoch = 0;
 double g_localBatteryVolts = 0.0;
 
 // Reads the local display-board cell voltage (ADC pin 36). 20-sample average; the
-// T18 factory scaling factor is used until recalibrated for this board's wiring.
+// T18 factory scaling factor is used until adjusted for this board's wiring.
 static Battery18650Stats g_battery(36, BATTERY_CONVERSION_FACTOR);
 
 // Effective timezone name (declared extern in wifi_config.h). Initialized to the
@@ -366,11 +366,14 @@ void setup()
   Serial.println();
   Serial.println("[wifi] Starting up...");
 
+  display_framebuffer_init();
+
   // Read the local cell voltage once before any render so the bottom row always
   // reflects the current value, whether this poll succeeds or fails.
   g_localBatteryVolts = g_battery.getBatteryVolts();
 
-  display_framebuffer_init();
+  Serial.printf("[battery] Voltage: %.2f V\n",
+                (double)(g_localBatteryVolts));
 
   WiFiManager wifiManager;
 
