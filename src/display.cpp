@@ -26,9 +26,9 @@ static uint8_t *g_fb = nullptr;
 
 #include "display_layout.h" // panel/icon/gap/position layout constants (see include/)
 
-// Forward declaration: defined after display_update()/display_show_error() but called
-// from both, so the status band always shows the local 18650 cell voltage (ADC pin 36).
-static void draw_battery_voltage_row(uint8_t *fb);
+// Forward declaration: defined after display_update() but called from it and from
+// display_show_error(), so both paths erase and redraw the status band identically.
+static void draw_status_band(uint8_t *fb);
 
 static void draw_panel(uint8_t *fb, int cx, const RuuviMeasurement &m)
 {
@@ -127,18 +127,11 @@ void display_update(const RuuviMeasurement *tags, uint8_t count)
     epd_write_string(&OpenSans12B, time_buf, &ts_x, &ts_y, g_fb, &ts_props);
   }
 
-  // Erase the status band so any error line from a previous failed cycle is gone.
-  // The band spans from LAST_UPDATED_ROW_Y (the "Last updated" row) to the bottom edge,
-  // so both the row and the error line are cleared; the retained tag data drawn above
-  // stays intact. Without this e-paper's persistent pixels would keep showing an old
-  // error message on every subsequent successful render.
-  epd_fill_rect(EpdRect{.x = 0, .y = display_layout::LAST_UPDATED_ROW_Y, .width = display_layout::DISPLAY_WIDTH, .height = display_layout::DISPLAY_HEIGHT - display_layout::LAST_UPDATED_ROW_Y}, 0xFF, g_fb);
-
-  // Draw the "Last updated" row (g_renderEpoch, set by main before this call).
-  draw_last_updated_row(g_fb);
-
-  // Local 18650 cell voltage (ADC pin 36), right of the "Last updated" row.
-  draw_battery_voltage_row(g_fb);
+  // Erase the status band and redraw the "Last updated" row + local 18650 cell voltage.
+  // Erasing the band first clears any error line from a previous failed cycle; without
+  // this the e-paper's persistent pixels would keep showing an old error message on every
+  // subsequent successful render, while the retained tag data drawn above stays intact.
+  draw_status_band(g_fb);
 
   // Power on FIRST so the panel is driven during data transfer, then off.
   // Without this the DC/CLK pulses are sent while VDD_IO is unpowered and the
@@ -201,6 +194,23 @@ static void draw_battery_voltage_row(uint8_t *fb)
   epd_write_string(&OpenSans12B, buf, &x, &y, fb, &props);
 }
 
+// Erase the status band and redraw the "Last updated" row + local 18650 cell voltage.
+// The band spans from LAST_UPDATED_ROW_Y (the "Last updated" row) to the bottom edge, so
+// both the row and the error line are cleared; the retained tag data drawn above stays
+// intact. Without this the e-paper's persistent pixels would keep showing a stale error
+// line on every subsequent render.
+static void draw_status_band(uint8_t *fb)
+{
+  // Erase the status band so any error line from a previous failed cycle is gone.
+  epd_fill_rect(EpdRect{.x = 0, .y = display_layout::LAST_UPDATED_ROW_Y, .width = display_layout::DISPLAY_WIDTH, .height = display_layout::DISPLAY_HEIGHT - display_layout::LAST_UPDATED_ROW_Y}, 0xFF, fb);
+
+  // Draw the "Last updated" row (g_renderEpoch, set by main before this call).
+  draw_last_updated_row(fb);
+
+  // Local 18650 cell voltage (ADC pin 36), right of the "Last updated" row.
+  draw_battery_voltage_row(fb);
+}
+
 // Draw an error/status message at the bottom-left of the panel and drive it. The tag
 // data rendered by display_update() is preserved (e-paper retains its pixels), so a
 // failed fetch shows the latest tags plus this line. The status band is cleared first
@@ -219,15 +229,10 @@ void display_show_error(const char *message)
     snprintf(msg, sizeof(msg), "--");
   }
 
-  // Clear the status band (row + error area) so a stale error line from a previous
-  // failed cycle is removed before we redraw.
-  epd_fill_rect(EpdRect{.x = 0, .y = display_layout::LAST_UPDATED_ROW_Y, .width = display_layout::DISPLAY_WIDTH, .height = display_layout::DISPLAY_HEIGHT - display_layout::LAST_UPDATED_ROW_Y}, 0xFF, g_fb);
-
-  // "Last updated" row (retains the last successful update time from g_renderEpoch).
-  draw_last_updated_row(g_fb);
-
-  // Local 18650 cell voltage (ADC pin 36), right of the "Last updated" row.
-  draw_battery_voltage_row(g_fb);
+  // Clear the status band (row + error area) and redraw the "Last updated" row and the
+  // local 18650 cell voltage, so a stale error line from a previous failed cycle is
+  // removed before the new error text is drawn below.
+  draw_status_band(g_fb);
 
   // Error line below the row.
   EpdFontProperties props = epd_font_properties_default();

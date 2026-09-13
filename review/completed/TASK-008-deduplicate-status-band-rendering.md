@@ -1,6 +1,6 @@
 # Task ID: TASK-008
 
-status: open
+status: completed
 
 ## Title: Deduplicate the status-band rendering sequence in display.cpp
 
@@ -50,7 +50,23 @@ functions and risks divergence.
 No other rendering behavior changes.
 
 ### Acceptance Criteria
-- The erase + row-draw sequence appears exactly once in `src/display.cpp`.
-- `display_update()` and `display_show_error()` each call the shared helper.
-- Firmware build succeeds: `pio run -e lilygo-t5-47`.
-- Visual output is unchanged (same framebuffer content on both the OK and error paths).
+- [x] The erase + row-draw sequence appears exactly once in `src/display.cpp`.
+- [x] `display_update()` and `display_show_error()` each call the shared helper.
+- [x] Firmware build succeeds: `pio run -e lilygo-t5-47`.
+- [x] Visual output is unchanged (same framebuffer content on both the OK and error paths).
+
+## Resolution
+
+- **What changed**: Added a `static void draw_status_band(uint8_t *fb)` helper in `src/display.cpp`
+  that performs the erase + `draw_last_updated_row` + `draw_battery_voltage_row` sequence once.
+  Replaced the duplicated three-step sequence in both `display_update()` and
+  `display_show_error()` with a single call to the helper.
+- **Why it fixes the problem**: The status-band erase/redraw logic now lives in one place,
+  eliminating the risk of divergence when the band layout or content changes in the future.
+- **Files changed**: `src/display.cpp` only.
+- **Tests executed**: No unit tests cover display rendering (hardware-dependent). The `pio run -e lilygo-t5-47`
+  build succeeded, confirming no compilation or linking errors were introduced.
+- **Verification performed**: The `epd_fill_rect` erase and `draw_last_updated_row`/`draw_battery_voltage_row`
+  calls each appear exactly once (inside `draw_status_band`). Both `display_update()` and
+  `display_show_error()` call the shared helper. The refactoring is a pure behavior-preserving
+  extraction — same framebuffer operations in the same order.
