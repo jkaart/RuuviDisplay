@@ -20,8 +20,11 @@
 static const uint64_t SHORT_HOLD_US = 2ULL * 60 * 1e6;  // endpoint unreachable -> short retry hold
 static const uint64_t DEEP_SLEEP_US = 30ULL * 60 * 1e6; // normal idle cycle between renders
 
-// Local display-board 18650 cell voltage: ADC->V scaling factor. T18 factory value;
-// must be calibrated against a multimeter for the T5-47 / ADC36 wiring.
+// Local display-board 18650 cell voltage: ADC->V scaling factor. This is NOT the T18
+// (LILYGO-T-Energy) factory value — that is 1.702 on pin 35 per Battery_18650_Stats.
+// This value derives from the locally calibrated ~1.79 factor used by the previous
+// T5-47 implementation (old/src) for the ADC36 wiring. It has not been verified against
+// a multimeter in this branch and still requires calibration against the 18650 cell.
 #define BATTERY_CONVERSION_FACTOR 1.795
 
 #include <esp_sleep.h>
@@ -71,7 +74,8 @@ time_t g_renderEpoch = 0;
 double g_localBatteryVolts = 0.0;
 
 // Reads the local display-board cell voltage (ADC pin 36). 20-sample average; the
-// T18 factory scaling factor is used until adjusted for this board's wiring.
+// locally calibrated ~1.79 factor from the previous T5-47 implementation is used until
+// this board's wiring is verified against a multimeter.
 static Battery18650Stats g_battery(36, BATTERY_CONVERSION_FACTOR);
 
 // Effective timezone name (declared extern in wifi_config.h). Initialized to the

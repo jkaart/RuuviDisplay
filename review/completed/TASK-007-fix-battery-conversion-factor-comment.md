@@ -1,6 +1,6 @@
 # Task ID: TASK-007
 
-status: open
+status: completed
 
 ## Title: Correct the misleading battery conversion factor comment and document its provenance
 
@@ -53,8 +53,31 @@ the factor against a multimeter readout of the 18650 cell as a separate manual s
 device is available.
 
 ### Acceptance Criteria
-- Both comment blocks in `src/main.cpp` no longer claim "T18 factory value".
-- The comment identifies the actual source of the factor (previous T5-47 calibration ~1.79)
+- [x] Both comment blocks in `src/main.cpp` no longer claim "T18 factory value".
+- [x] The comment identifies the actual source of the factor (previous T5-47 calibration ~1.79)
   and states that a multimeter calibration is still required.
-- The value of `BATTERY_CONVERSION_FACTOR` is unchanged.
-- Firmware build succeeds: `pio run -e lilygo-t5-47`.
+- [x] The value of `BATTERY_CONVERSION_FACTOR` is unchanged.
+- [x] Firmware build succeeds: `pio run -e lilygo-t5-47`.
+
+## Resolution
+
+**What changed:** Replaced both misleading comment blocks in `src/main.cpp` that labeled
+`BATTERY_CONVERSION_FACTOR` (1.795) as "T18 factory value". The new comments correctly
+identify the factor's provenance (the locally calibrated ~1.79 value from the previous
+T5-47 implementation in `old/src`) and explicitly state that multimeter calibration is
+still required.
+
+**Why:** The T18 factory default is 1.702 on pin 35 per the `Battery_18650_Stats` library,
+not 1.795 on pin 36. The branch history shows two contradictory recalibration attempts
+without multimeter evidence. The misleading label risked future maintainers treating the
+value as an off-the-shelf constant.
+
+**Files changed:**
+- `src/main.cpp` — two comment blocks (lines 23-27 and lines 76-78)
+
+**Tests executed:**
+- `pio run -e lilygo-t5-47` — SUCCESS (no code change, comments only)
+
+**Verification:**
+- Grep confirmed no remaining "T18 factory" strings in the modified comments
+- Build produces identical binary size (~1.4 MB), confirming no code change
