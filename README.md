@@ -17,6 +17,7 @@ The device connects to Wi-Fi, retrieves the latest RuuviTag measurements from a 
 - Battery voltage
 - RuuviTag name and MAC address
 - Measurement timestamp
+- Local battery (18650) cell voltage display
 - Automatic **Europe/Helsinki** timezone and daylight-saving-time handling
 - Wi-Fi configuration using a captive portal
 - Persistent Wi-Fi and backend configuration
@@ -175,6 +176,8 @@ Each panel contains:
 - Battery voltage
 - Measurement timestamp
 
+The bottom row of the display shows "Last updated" on the left and the local 18650 cell voltage on the right.
+
 A simplified representation:
 
 ```text
@@ -189,6 +192,7 @@ A simplified representation:
 │                                                              │
 │  01/09/26 18:30:12     01/09/26 18:29:58   01/09/26 18:29:41 │
 │                                                              │
+│                Last updated: 18:30:12   4.12 V               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -280,14 +284,18 @@ The project uses:
 - **WiFiManager**
 - **ArduinoJson**
 - **Timezone**
+- **NTPClient**
+- **Battery_18650_Stats**
 
 The main dependencies are defined in `platformio.ini`:
 
 ```ini
-tzapu/WiFiManager
-vroland/epdiy
-bblanchon/ArduinoJson
-jchristensen/Timezone
+tzapu/WiFiManager@^2.0.17
+vroland/epdiy@^2.1.3
+bblanchon/ArduinoJson@^7.0.4
+jchristensen/Timezone@^1.3.1
+arduino-libraries/NTPClient@^3.2.1
+danilopinotti/Battery_18650_Stats@^1.0.0
 ```
 
 The current project configuration uses the `pioarduino` ESP32 platform and configures the board for a 16 MB flash device.
